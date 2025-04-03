@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 4%;
+    --foreground: 0 0% 95%;
+    
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 95%;
+    
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 95%;
+    
+    --primary: 195 73% 73%;
+    --primary-foreground: 0 0% 4%;
+    
+    --secondary: 0 0% 77%;
+    --secondary-foreground: 0 0% 4%;
+    
+    --muted: 0 0% 20%;
+    --muted-foreground: 0 0% 70%;
+    
+    --accent: 195 73% 73%;
+    --accent-foreground: 0 0% 4%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 195 73% 73%;
+    
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    @apply antialiased bg-gradient-to-br from-[#0A0A0A] to-[#1A1A1A] text-foreground min-h-screen;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: rgba(20, 20, 20, 0.1);
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: rgba(200, 200, 200, 0.3);
+    border-radius: 3px;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-[rgba(230,230,230,0.15)] backdrop-blur-[10px] border border-[rgba(255,255,255,0.2)] rounded-lg shadow-md;
+  }
+
+  .glass-darker {
+    @apply bg-[rgba(200,200,200,0.1)] backdrop-blur-[10px] rounded-lg border border-[rgba(255,255,255,0.15)];
+  }
+  
+  .glass-lighter {
+    @apply bg-[rgba(240,240,240,0.2)] backdrop-blur-[12px] rounded-lg border border-[rgba(255,255,255,0.25)];
+  }
+
+  .user-bubble {
+    @apply bg-[rgba(136,204,238,0.8)] backdrop-blur-[10px] rounded-lg;
+  }
+
+  .expand {
+    @apply transition-all duration-300 hover:scale-[1.01] hover:shadow-lg;
+  }
+
+  /* Animation is now directly applied via animate-appear in Tailwind config */
+
+  /* Leaflet Map Custom Styles */
+  .leaflet-container {
+    @apply h-full rounded-lg;
+    background-color: #1A1A1A;
+    z-index: 10;
+  }
+  
+  .leaflet-tile {
+    filter: grayscale(0.3) brightness(0.8) contrast(1.1);
+  }
+
+  /* Custom Map Markers */
+  .custom-marker {
+    @apply bg-[rgba(136,204,238,0.9)] border-2 border-white rounded-full text-center text-white font-bold flex items-center justify-center shadow-lg;
+  }
+}
+
+@keyframes appear {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes blink {
+  0% { opacity: 0.1; }
+  20% { opacity: 1; }
+  100% { opacity: 0.1; }
+}
