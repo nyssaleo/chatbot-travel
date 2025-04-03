@@ -1,0 +1,86 @@
+I understand you want an improved design that's more visually compelling and informative than the mockup you shared. Here's a hyperspecific prompt for creating a more beautiful, detailed, and functional travel planning interface:
+
+# Enhanced Travel Planning Chatbot Design Prompt
+
+## Core Aesthetic Vision
+Create a sophisticated travel planning interface that balances beauty, functionality, and information density. The design should convey the emotional vibe of travel while providing clear, structured trip information.
+
+## Visual Design Direction
+
+### Theme Elements
+- **Color Palette**: Deep charcoal background (#121212) with vibrant accent colors that adapt to the destination (beach destinations use turquoise accents, mountain destinations use forest green, etc.)
+- **Glass Effect**: Refined glassmorphism with 60% opacity and 15px blur for cards
+- **Typography**: Elegant sans-serif pairing (Montserrat for headings, Open Sans for body text)
+- **Imagery**: High-quality destination photography with subtle color grading to match the theme
+- **Microinteractions**: Subtle hover states, smooth expansions, and gentle loading animations
+
+### Layout Structure
+- **Split Interface**: 60% conversation/itinerary area, 40% visualization area (collapsible)
+- **Nested Information Hierarchy**: Cards within cards revealing more detail on interaction
+- **Compact Map View**: Miniature by default with elegant expansion animation on hover/click
+- **Journey Visualization**: Curved route lines connecting destinations with animated dots showing travel progression
+
+## Component Specifications
+
+### Itinerary Display
+- **Timeline Format**: Vertical day-by-day timeline with expanding segments
+- **Visual Day Cards**: Each day represented by a card with:
+  - Subtle background image reflecting the day's activities
+  - Time-based activity markers
+  - Small map thumbnail showing that day's movements
+  - Weather forecast icon and temperature
+  - Cost breakdown for the day
+
+### Flight Information Card
+- **Compact Visual Format**: Airline logo, departure/arrival times with timezone indicators
+- **Interactive Terminal Map**: Small airport diagram showing gates
+- **Flight Details**: Duration, aircraft type, amenities
+- **Pricing Tiers**: Visual comparison of available fare classes
+- **Connection Visualization**: Miniature world map showing flight path with layovers
+
+### Accommodation Cards
+- **Rich Media Display**: Gallery view with property highlights
+- **Location Context**: Mini-map showing proximity to attractions
+- **Amenity Icons**: Visual representation of key features
+- **Price Calendar**: Heat map showing rate variations
+- **Room Comparison**: Side-by-side comparison of available options
+
+### Map Enhancements
+- **Custom Route Styling**: Gradient paths showing the journey with directional animation
+- **Contextual POI Markers**: Icons reflecting the type of attraction
+- **Cluster Visualization**: Activity groupings with expanding detail
+- **Time Overlays**: Visual indication of time spent in each location
+- **3D Landmark Indicators**: Important sites with subtle elevation rendering
+
+### Weather Integration
+- **Visual Forecast Strip**: Showing conditions across the trip duration
+- **Packing Suggestions**: Based on predicted weather conditions
+- **Activity Recommendations**: Weather-appropriate suggestions
+
+## Interactive Elements
+
+### Exploration Features
+- **Point-of-Interest Expansion**: Hover on map markers reveals rich detail cards
+- **Activity Suggestions**: Contextual recommendations based on location and interests
+- **Local Tips Panel**: Insider information that appears based on selected locations
+- **Photo Spots**: Camera icons marking Instagram-worthy locations
+
+### User Input Controls
+- **Natural Language Bar**: Elegant, minimalist prompt with subtle suggestion text
+- **Voice Input Option**: Microphone icon with animation during recording
+- **Preference Controls**: Simple toggles for refining recommendations (food preferences, pace of travel, budget level)
+
+## Sample Layout Structure
+1. **Header**: Minimal branding with destination name and trip dates
+2. **Main Content Area**:
+   - Left: Conversation and detailed itinerary with expanding/collapsing sections
+   - Right: Interactive map with journey visualization and contextual information panels
+3. **Bottom Bar**: Input field with suggestion prompts and voice control
+
+## Technical Implementation Notes
+- Use dynamic SVG paths for route visualization
+- Implement intersection observers for smooth reveal animations
+- Use canvas-based weather visualizations for performance
+- Implement virtual scrolling for long itineraries to maintain performance
+
+This design approach creates an emotionally engaging interface that not only presents information clearly but also builds excitement for the journey by visually communicating the experience of the trip.

@@ -77,38 +77,59 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen p-4 lg:p-6 overflow-hidden">
-      <header className="flex items-center justify-between mb-4">
+      <header className="glass flex items-center justify-between mb-6 p-3 lg:p-4 rounded-xl">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-full glass flex items-center justify-center">
-            <i className="fas fa-plane text-[#88CCEE]"></i>
+          <div className="w-12 h-12 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
+            <i className="fas fa-plane-departure text-primary text-xl"></i>
           </div>
-          <h1 className="text-xl font-semibold text-white">Silver Glass Travel</h1>
+          <div>
+            <h1 className="text-xl font-semibold text-white">Traveler<span className="text-primary">AI</span></h1>
+            <p className="text-xs text-muted-foreground">Your personal travel planning assistant</p>
+          </div>
         </div>
-        <div className="glass px-4 py-2 rounded-full text-sm flex items-center space-x-2">
-          <i className="fas fa-user text-[#88CCEE]"></i>
+        
+        {currentLocation && (
+          <div className="hidden md:flex items-center glass-darker px-5 py-2 rounded-full">
+            <i className="fas fa-map-marker-alt text-primary mr-2"></i>
+            <span className="font-medium">{currentLocation}</span>
+            {weather && (
+              <div className="flex items-center ml-3 pl-3 border-l border-muted">
+                <span className="text-xl mr-1">{weather.icon}</span>
+                <span className="text-sm">{weather.temperature.average}</span>
+              </div>
+            )}
+          </div>
+        )}
+        
+        <div className="glass-lighter px-4 py-2 rounded-full text-sm flex items-center space-x-2 hover-lift cursor-pointer">
+          <i className="fas fa-user text-primary"></i>
           <span>Guest User</span>
         </div>
       </header>
       
-      <main className="flex flex-col lg:flex-row flex-1 gap-4 overflow-hidden">
-        {/* Chat Interface */}
-        <ChatContainer 
-          messages={messages}
-          setMessages={setMessages}
-          isLoading={isLoading}
-          setIsLoading={setIsLoading}
-          onLocationsUpdate={handleLocationsUpdate}
-          onItineraryUpdate={handleItineraryUpdate}
-          onWeatherUpdate={handleWeatherUpdate}
-          itinerary={itinerary}
-        />
+      <main className="flex flex-col lg:flex-row flex-1 gap-5 overflow-hidden">
+        {/* Chat Interface - 60% width on desktop */}
+        <div className="flex-1 lg:w-3/5 lg:flex-[0.6]">
+          <ChatContainer 
+            messages={messages}
+            setMessages={setMessages}
+            isLoading={isLoading}
+            setIsLoading={setIsLoading}
+            onLocationsUpdate={handleLocationsUpdate}
+            onItineraryUpdate={handleItineraryUpdate}
+            onWeatherUpdate={handleWeatherUpdate}
+            itinerary={itinerary}
+          />
+        </div>
         
-        {/* Map Interface */}
-        <MapContainer 
-          markers={markers}
-          currentLocation={currentLocation}
-          weather={weather}
-        />
+        {/* Map & Data Visualization - 40% width on desktop */}
+        <div className="flex-1 lg:w-2/5 lg:flex-[0.4] flex flex-col">
+          <MapContainer 
+            markers={markers}
+            currentLocation={currentLocation}
+            weather={weather}
+          />
+        </div>
       </main>
     </div>
   );

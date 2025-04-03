@@ -7,7 +7,8 @@ interface ChatInputProps {
 
 const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, disabled = false }) => {
   const [message, setMessage] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [isComposing, setIsComposing] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSend = () => {
     if (message.trim() && !disabled) {
@@ -21,37 +22,64 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, disabled = false }
     }
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  // Auto-resize textarea as content grows
+  const autoResizeTextarea = () => {
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 120)}px`;
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
       e.preventDefault();
       handleSend();
     }
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMessage(e.target.value);
+    autoResizeTextarea();
+  };
+
   return (
-    <div className="p-4 border-t border-[rgba(255,255,255,0.2)]">
-      <div className="flex items-center">
-        <input 
+    <div className="w-full">
+      <div className="relative">
+        <textarea
           ref={inputRef}
-          type="text"
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
-          className="glass-lighter flex-1 py-3 px-4 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-[#88CCEE] text-white"
-          placeholder="Type your travel query..."
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
+          rows={1}
+          className="floating-input w-full py-3 pl-12 pr-14 text-sm rounded-full resize-none focus:outline-none"
+          placeholder="Ask me about destinations, itineraries, or travel tips..."
           disabled={disabled}
+          style={{ minHeight: '46px', maxHeight: '120px' }}
         />
-        <button 
+
+        {/* Microphone button (left side) */}
+        <button
+          className="absolute left-2 top-1/2 transform -translate-y-1/2 w-8 h-8 rounded-full glass-lighter flex items-center justify-center hover:bg-primary/10 transition-colors"
+          aria-label="Voice input"
+        >
+          <i className="fas fa-microphone text-primary"></i>
+        </button>
+
+        {/* Send button (right side) */}
+        <button
           onClick={handleSend}
           disabled={disabled || message.trim() === ''}
-          className="bg-[#88CCEE] hover:bg-opacity-80 text-[#0A0A0A] rounded-r-lg px-4 py-3 font-medium transition-all disabled:opacity-50"
+          className={`absolute right-2 top-1/2 transform -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+            message.trim() && !disabled
+              ? 'bg-primary text-white shadow-md hover:shadow-lg hover:bg-primary/90'
+              : 'glass-lighter text-muted-foreground'
+          }`}
+          aria-label="Send message"
         >
           <i className="fas fa-paper-plane"></i>
         </button>
-      </div>
-      <div className="flex justify-between mt-2 text-xs text-[#C4C4C4] px-1">
-        <div>Try: "Show me places to visit in Tokyo"</div>
-        <div>Powered by Groq AI</div>
       </div>
     </div>
   );

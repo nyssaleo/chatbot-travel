@@ -1,38 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Open+Sans:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 4%;
-    --foreground: 0 0% 95%;
+    --background: 0 0% 7%;
+    --foreground: 0 0% 98%;
     
-    --card: 0 0% 10%;
-    --card-foreground: 0 0% 95%;
+    --card: 0 0% 11%;
+    --card-foreground: 0 0% 98%;
     
-    --popover: 0 0% 10%;
-    --popover-foreground: 0 0% 95%;
+    --popover: 0 0% 11%;
+    --popover-foreground: 0 0% 98%;
     
-    --primary: 195 73% 73%;
-    --primary-foreground: 0 0% 4%;
+    --primary: 235 86% 65%;
+    --primary-foreground: 0 0% 98%;
     
-    --secondary: 0 0% 77%;
-    --secondary-foreground: 0 0% 4%;
+    --secondary: 240 10% 80%;
+    --secondary-foreground: 0 0% 7%;
     
-    --muted: 0 0% 20%;
-    --muted-foreground: 0 0% 70%;
+    --muted: 240 3% 22%;
+    --muted-foreground: 240 5% 75%;
     
-    --accent: 195 73% 73%;
-    --accent-foreground: 0 0% 4%;
+    --accent: 235 86% 65%;
+    --accent-foreground: 0 0% 98%;
     
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
     
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
-    --ring: 195 73% 73%;
+    --border: 240 3% 22%;
+    --input: 240 3% 22%;
+    --ring: 235 86% 65%;
     
-    --radius: 0.5rem;
+    --radius: 0.75rem;
   }
 
   * {
@@ -40,8 +42,13 @@
   }
 
   body {
-    font-family: 'Inter', sans-serif;
-    @apply antialiased bg-gradient-to-br from-[#0A0A0A] to-[#1A1A1A] text-foreground min-h-screen;
+    font-family: 'Open Sans', sans-serif;
+    @apply antialiased bg-gradient-to-br from-[#121212] to-[#1a1a24] text-foreground min-h-screen;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Montserrat', sans-serif;
+    @apply font-medium tracking-tight;
   }
 
   /* Custom scrollbar */
@@ -60,42 +67,144 @@
 }
 
 @layer components {
+  /* Enhanced glassmorphism effects */
   .glass {
-    @apply bg-[rgba(230,230,230,0.15)] backdrop-blur-[10px] border border-[rgba(255,255,255,0.2)] rounded-lg shadow-md;
+    @apply bg-[rgba(255,255,255,0.06)] backdrop-blur-[15px] border border-[rgba(255,255,255,0.1)] rounded-lg shadow-lg;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   }
 
   .glass-darker {
-    @apply bg-[rgba(200,200,200,0.1)] backdrop-blur-[10px] rounded-lg border border-[rgba(255,255,255,0.15)];
+    @apply bg-[rgba(20,20,30,0.7)] backdrop-blur-[15px] rounded-lg border border-[rgba(255,255,255,0.05)];
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
   
   .glass-lighter {
-    @apply bg-[rgba(240,240,240,0.2)] backdrop-blur-[12px] rounded-lg border border-[rgba(255,255,255,0.25)];
+    @apply bg-[rgba(255,255,255,0.09)] backdrop-blur-[15px] rounded-lg border border-[rgba(255,255,255,0.15)];
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   }
 
+  /* Message bubbles */
   .user-bubble {
-    @apply bg-[rgba(136,204,238,0.8)] backdrop-blur-[10px] rounded-lg;
+    @apply bg-primary bg-opacity-90 backdrop-blur-[10px] text-white;
+    box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
   }
 
+  .glass-message {
+    @apply glass-darker border-l-2 border-[rgba(255,255,255,0.08)];
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  }
+
+  .assistant-bubble {
+    @apply glass-lighter;
+  }
+
+  /* Interactive elements */
   .expand {
     @apply transition-all duration-300 hover:scale-[1.01] hover:shadow-lg;
   }
 
-  /* Animation is now directly applied via animate-appear in Tailwind config */
+  .hover-lift {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lg;
+  }
+
+  /* Timeline elements */
+  .timeline-container {
+    @apply relative pl-8 ml-3 before:absolute before:h-full before:w-0.5 before:bg-primary/30 before:left-0 before:top-0;
+  }
+
+  .timeline-dot {
+    @apply absolute -left-[13px] w-6 h-6 bg-primary rounded-full flex items-center justify-center z-10;
+  }
+
+  /* Itinerary card styling */
+  .itinerary-day-card {
+    @apply glass-lighter p-4 rounded-lg mb-4 overflow-hidden transition-all duration-300;
+  }
+
+  .itinerary-day-card:hover {
+    @apply shadow-lg;
+    transform: translateY(-2px);
+  }
+
+  .activity-card {
+    @apply glass-darker p-3 rounded-lg mb-2 border-l-4 border-primary/50 transition-all duration-200;
+  }
+
+  .activity-card:hover {
+    @apply border-primary;
+  }
+
+  /* Weather cards */
+  .weather-card {
+    @apply glass-darker p-4 rounded-lg flex items-center gap-3;
+  }
+
+  .temp-range {
+    @apply flex items-center gap-1.5 text-sm font-medium;
+  }
 
   /* Leaflet Map Custom Styles */
   .leaflet-container {
     @apply h-full rounded-lg;
-    background-color: #1A1A1A;
+    background-color: #121820;
     z-index: 10;
+    transition: all 0.3s ease;
   }
   
   .leaflet-tile {
-    filter: grayscale(0.3) brightness(0.8) contrast(1.1);
+    filter: grayscale(0.4) brightness(0.7) contrast(1.2) saturate(0.8);
+    transition: all 0.5s ease;
+  }
+
+  .leaflet-container:hover .leaflet-tile {
+    filter: grayscale(0) brightness(0.8) contrast(1.2) saturate(1);
   }
 
   /* Custom Map Markers */
   .custom-marker {
-    @apply bg-[rgba(136,204,238,0.9)] border-2 border-white rounded-full text-center text-white font-bold flex items-center justify-center shadow-lg;
+    @apply bg-primary border-2 border-white rounded-full text-center text-white font-bold flex items-center justify-center shadow-lg;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease-out;
+  }
+
+  .custom-marker:hover {
+    transform: scale(1.1);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+  }
+
+  .marker-attraction {
+    background-color: rgba(132, 90, 223, 0.9);
+  }
+
+  .marker-food {
+    background-color: rgba(255, 112, 67, 0.9);
+  }
+
+  .marker-hotel {
+    background-color: rgba(42, 157, 143, 0.9);
+  }
+
+  .marker-nature {
+    background-color: rgba(76, 187, 23, 0.9);
+  }
+
+  /* Location cards with subtle hover effect */
+  .location-card {
+    @apply glass-lighter p-3 rounded-lg border-l-2 border-transparent transition-all duration-300;
+  }
+
+  .location-card:hover {
+    @apply border-primary/70 -translate-y-0.5 shadow-md;
+  }
+
+  /* Input field with floating effect */
+  .floating-input {
+    @apply glass-darker px-4 py-3 rounded-full w-full border border-transparent focus:border-primary/50 transition-all;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .floating-input:focus {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15), 0 0 0 2px rgba(99, 102, 241, 0.2);
   }
 }
 

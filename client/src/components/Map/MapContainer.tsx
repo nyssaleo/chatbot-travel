@@ -18,6 +18,8 @@ const MapContainer: React.FC<MapContainerProps> = ({
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<L.Marker[]>([]);
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const [activeLayer, setActiveLayer] = useState<'standard' | 'satellite'>('standard');
   
   // Initialize map
   useEffect(() => {
@@ -27,7 +29,15 @@ const MapContainer: React.FC<MapContainerProps> = ({
     if (mapRef.current) return;
     
     // Create map with default view (world)
-    const map = L.map(mapContainerRef.current).setView([20, 0], 2);
+    const map = L.map(mapContainerRef.current, {
+      zoomControl: false,
+      attributionControl: false
+    }).setView([20, 0], 2);
+    
+    // Add better positioning for zoom controls
+    L.control.zoom({
+      position: 'bottomright'
+    }).addTo(map);
     
     // Add tile layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -47,6 +57,34 @@ const MapContainer: React.FC<MapContainerProps> = ({
     };
   }, []);
   
+  // Toggle map tile layer between standard and satellite
+  const toggleMapLayer = () => {
+    if (!mapRef.current) return;
+    
+    // Remove existing tile layers
+    mapRef.current.eachLayer((layer: L.Layer) => {
+      if (layer instanceof L.TileLayer) {
+        mapRef.current?.removeLayer(layer);
+      }
+    });
+    
+    // Add new tile layer based on activeLayer state
+    if (activeLayer === 'standard') {
+      // Add satellite layer
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+      }).addTo(mapRef.current);
+      setActiveLayer('satellite');
+    } else {
+      // Add standard layer
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19
+      }).addTo(mapRef.current);
+      setActiveLayer('standard');
+    }
+  };
+  
   // Update markers when they change
   useEffect(() => {
     if (!mapRef.current) return;
@@ -59,6 +97,44 @@ const MapContainer: React.FC<MapContainerProps> = ({
     if (markers.length > 0) {
       markersRef.current = addMarkersToMap(mapRef.current, markers);
       centerMapOnMarkers(mapRef.current, markers);
+      
+      // If we have more than one marker, try to draw a path between them
+      if (markers.length > 1) {
+        // Sort markers by type (attractions first)
+        const sortedMarkers = [...markers].sort((a, b) => {
+          if (a.type === 'attraction' && b.type !== 'attraction') return -1;
+          if (a.type !== 'attraction' && b.type === 'attraction') return 1;
+          return 0;
+        });
+        
+        // Get attraction points for the path
+        const pathPoints = sortedMarkers
+          .filter(marker => marker.type === 'attraction' || marker.type === 'landmark')
+          .map(marker => [marker.latitude, marker.longitude]);
+        
+        // Draw the path with animation
+        if (pathPoints.length > 1) {
+          // Create a fancy path with gradient
+          const polyline = L.polyline(pathPoints as L.LatLngExpression[], {
+            color: 'rgba(99, 102, 241, 0.8)',
+            weight: 3,
+            opacity: 0.8,
+            lineJoin: 'round',
+            dashArray: '5, 10',
+            dashOffset: '0'
+          }).addTo(mapRef.current);
+          
+          // Animate the path
+          let dashOffset = 0;
+          const animatePath = () => {
+            dashOffset -= 0.5;
+            polyline.setStyle({ dashOffset: `${dashOffset}` });
+            requestAnimationFrame(animatePath);
+          };
+          
+          animatePath();
+        }
+      }
     }
   }, [markers]);
   
@@ -77,34 +153,89 @@ const MapContainer: React.FC<MapContainerProps> = ({
     };
   }, []);
   
-  // Get popular food places from markers
-  const foodPlaces = markers.filter(marker => 
-    marker.type === 'food'
-  ).slice(0, 4);
+  // Trigger map resize when expanded state changes
+  useEffect(() => {
+    if (mapRef.current) {
+      setTimeout(() => {
+        mapRef.current?.invalidateSize();
+      }, 300);
+    }
+  }, [mapExpanded]);
+  
+  // Get markers by type for information display
+  const foodPlaces = markers.filter(marker => marker.type === 'food').slice(0, 4);
+  const hotels = markers.filter(marker => marker.type === 'hotel').slice(0, 2);
+  const attractions = markers.filter(marker => marker.type === 'attraction' || marker.type === 'nature').slice(0, 6);
+  
+  // Count markers by type for stats
+  const markerStats = {
+    attractions: attractions.length,
+    food: foodPlaces.length,
+    hotels: hotels.length,
+    total: markers.length
+  };
   
   return (
-    <div className="glass lg:w-1/2 flex flex-col overflow-hidden">
-      <div className="p-4 border-b border-[rgba(255,255,255,0.2)] flex justify-between items-center">
-        <h2 className="text-lg font-medium text-white">
-          {currentLocation || "Explore the World"}
-        </h2>
+    <div className={`glass flex flex-col overflow-hidden transition-all duration-300 ${mapExpanded ? 'h-[600px]' : 'h-[500px]'}`}>
+      <div className="p-4 border-b border-[rgba(255,255,255,0.1)] flex justify-between items-center">
+        <div>
+          <h2 className="text-lg font-medium text-white flex items-center">
+            <i className="fas fa-map-marked-alt text-primary mr-2"></i>
+            {currentLocation || "Explore the World"}
+          </h2>
+          {markers.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Showing {markers.length} locations • 
+              {markerStats.attractions > 0 && <span> {markerStats.attractions} attractions</span>}
+              {markerStats.food > 0 && <span> • {markerStats.food} restaurants</span>}
+              {markerStats.hotels > 0 && <span> • {markerStats.hotels} hotels</span>}
+            </p>
+          )}
+        </div>
         <div className="flex space-x-2">
-          <button className="glass-lighter p-2 rounded-lg hover:bg-opacity-30 transition-all">
-            <i className="fas fa-search text-[#88CCEE]"></i>
+          <button 
+            onClick={toggleMapLayer}
+            className="glass-lighter p-2 rounded-lg hover:bg-opacity-30 transition-all"
+            title={activeLayer === 'standard' ? 'Switch to satellite view' : 'Switch to standard view'}
+          >
+            <i className={`fas ${activeLayer === 'standard' ? 'fa-satellite' : 'fa-map'} text-primary`}></i>
           </button>
-          <button className="glass-lighter p-2 rounded-lg hover:bg-opacity-30 transition-all">
-            <i className="fas fa-layer-group text-[#88CCEE]"></i>
+          <button 
+            onClick={() => setMapExpanded(!mapExpanded)}
+            className="glass-lighter p-2 rounded-lg hover:bg-opacity-30 transition-all"
+            title={mapExpanded ? 'Collapse map' : 'Expand map'}
+          >
+            <i className={`fas ${mapExpanded ? 'fa-compress-alt' : 'fa-expand-alt'} text-primary`}></i>
           </button>
         </div>
       </div>
       
       <div className="flex-1 flex flex-col">
-        {/* Map Container */}
-        <div 
-          ref={mapContainerRef} 
-          className="flex-1 relative"
-          id="map-container"
-        ></div>
+        {/* Map Container with subtle shadow at the bottom for depth */}
+        <div className="flex-1 relative">
+          <div className="absolute inset-0 shadow-[inset_0_-10px_20px_-10px_rgba(0,0,0,0.3)] z-20 pointer-events-none"></div>
+          <div 
+            ref={mapContainerRef} 
+            className="h-full w-full"
+            id="map-container"
+          ></div>
+          
+          {/* Location type filter overlay */}
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-1 z-20">
+            <div className="glass-darker py-1 px-3 rounded-full text-xs flex items-center">
+              <span className="w-2 h-2 bg-[rgba(132,90,223,0.9)] rounded-full mr-1.5"></span>
+              <span>Attractions</span>
+            </div>
+            <div className="glass-darker py-1 px-3 rounded-full text-xs flex items-center">
+              <span className="w-2 h-2 bg-[rgba(255,112,67,0.9)] rounded-full mr-1.5"></span>
+              <span>Food</span>
+            </div>
+            <div className="glass-darker py-1 px-3 rounded-full text-xs flex items-center">
+              <span className="w-2 h-2 bg-[rgba(42,157,143,0.9)] rounded-full mr-1.5"></span>
+              <span>Hotels</span>
+            </div>
+          </div>
+        </div>
         
         {/* Information Cards */}
         <InfoCards 
