@@ -186,40 +186,94 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
   // Filter local recommendations based on active day
   // This is where we implement day-specific food and attraction recommendations
   const getDaySpecificData = (data: any[], day: number, type: 'food' | 'attraction') => {
-    // If we have fewer than 5 items, duplicate to ensure at least 5 items per day
-    if (data.length < 5) {
-      const duplicated = [...data];
-      while (duplicated.length < 5) {
-        duplicated.push(...data);
-      }
-      data = duplicated.slice(0, 5);
-    }
-    
-    // Distribute items across days
-    const itemsPerDay = Math.ceil(data.length / (itinerary?.days.length || 1));
-    const startIdx = (day - 1) * itemsPerDay;
-    const endIdx = Math.min(startIdx + itemsPerDay + 2, data.length); // Add 2 more items for overlap
-    
-    // Return day-specific items with a modified id to mark the day
-    return data.slice(startIdx, endIdx).map(item => {
+    // Create day-specific variation of each recommendation to avoid duplication
+    const enhancedData = data.map((item, index) => {
+      // Generate a unique ID for this item that includes the day
+      const uniqueId = `${type}-day${day}-${index}-${item.id.substring(0, 8)}`;
+      
+      // Get the day information from the itinerary if available
+      let dayInfo = itinerary?.days.find(d => d.day === day);
       let locationText = item.location;
       
       // For food items, use area specific to the day's activities if possible
-      if (type === 'food' && itinerary) {
-        const dayTitle = itinerary.days.find(d => d.day === day)?.title;
-        if (dayTitle) {
-          locationText = `Near ${dayTitle}`;
-        } else {
-          locationText = `Near your daily activities`;
+      if (itinerary && dayInfo) {
+        // Extract a notable location from the day's activities
+        const dayActivities = dayInfo.activities.map(a => a.description).join(' ');
+        const locationMatches = dayActivities.match(/(?:visit|explore|at|in|to)\s+([A-Z][a-zA-Z\s]{2,}?(?=\s+|\.|,|;))/);
+        
+        if (locationMatches && locationMatches[1]) {
+          if (type === 'food') {
+            locationText = `Near ${locationMatches[1]}`;
+          } else {
+            // For attractions, be more specific about the neighborhood
+            locationText = `${locationMatches[1]} area`;
+          }
+        } else if (dayInfo.title) {
+          // Fallback to day title
+          locationText = `Near ${dayInfo.title}`;
+        }
+      }
+      
+      // Modify the description to make it more day-specific and unique
+      let enhancedDescription = item.description;
+      if (itinerary && dayInfo) {
+        const timeOfDay = (() => {
+          // Check time of day from the activities
+          const morningActivity = dayInfo.activities.find(a => a.time.includes('AM'));
+          const afternoonActivity = dayInfo.activities.find(a => 
+            a.time.includes('PM') && parseInt(a.time.split(':')[0]) < 5
+          );
+          const eveningActivity = dayInfo.activities.find(a => 
+            a.time.includes('PM') && parseInt(a.time.split(':')[0]) >= 5
+          );
+          
+          if (type === 'food') {
+            return morningActivity ? 'breakfast' : 
+                   afternoonActivity ? 'lunch' : 
+                   eveningActivity ? 'dinner' : 'meal';
+          } else {
+            return morningActivity ? 'morning' : 
+                   afternoonActivity ? 'afternoon' : 
+                   eveningActivity ? 'evening' : '';
+          }
+        })();
+        
+        if (type === 'food' && timeOfDay) {
+          enhancedDescription = `Perfect for ${timeOfDay} on day ${day}. ${item.description}`;
+        } else if (type === 'attraction') {
+          enhancedDescription = `Great ${timeOfDay} activity for day ${day}. ${item.description}`;
         }
       }
       
       return {
         ...item,
-        id: `day-${day}-${item.id}`,
-        location: locationText
+        id: uniqueId,
+        uniqueKey: uniqueId, // Adding a separate uniqueKey property for React's key prop
+        location: locationText,
+        description: enhancedDescription
       };
     });
+    
+    // Limit to 4 items per day to avoid overwhelming the user
+    // Use modulo arithmetic to assign recommendations to days even if there aren't enough
+    const dayItems = enhancedData.filter((_, index) => index % (itinerary?.days.length || 1) === (day - 1) % (itinerary?.days.length || 1));
+    
+    // If we don't have enough items for this day, add some from other days with modified descriptions
+    if (dayItems.length < 3 && enhancedData.length > 0) {
+      const additionalItems = enhancedData
+        .filter((_, index) => index % (itinerary?.days.length || 1) !== (day - 1) % (itinerary?.days.length || 1))
+        .slice(0, 3 - dayItems.length)
+        .map(item => ({
+          ...item,
+          id: `extra-${item.id}`,
+          uniqueKey: `extra-${item.uniqueKey}`, // Ensure uniqueness
+          description: `Also recommended for day ${day}: ${item.description}`
+        }));
+      
+      return [...dayItems, ...additionalItems];
+    }
+    
+    return dayItems;
   };
   
   return (
@@ -446,7 +500,7 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                 
                 {localFood.length > 0 ? (
                   getDaySpecificData(localFood, activeDay, 'food').map((food, index) => (
-                    <div key={food.id}>
+                    <div key={food.uniqueKey || food.id}>
                       <RestaurantCard
                         restaurant={{
                           id: food.id,
@@ -516,7 +570,7 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                 
                 {localAttractions.length > 0 ? (
                   getDaySpecificData(localAttractions, activeDay, 'attraction').map((attraction, index) => (
-                    <div key={attraction.id}>
+                    <div key={attraction.uniqueKey || attraction.id}>
                       <ActivityCard
                         activity={{
                           id: attraction.id,

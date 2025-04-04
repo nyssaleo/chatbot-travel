@@ -1304,51 +1304,137 @@ function generateMockResponse(userMessage: string): string {
  * Extract local food information from the response
  */
 function extractLocalFood(response: string): any[] {
-  const foodItems = [];
+  const foodItems: any[] = [];
   
   try {
     // Look for the LOCAL_FOOD section in the response
     // Using a workaround for dotAll flag by replacing newlines with a character we can include in character class
     const normalizedResponse = response.replace(/\n/g, '◆');
-    const foodSectionRegex = /LOCAL_FOOD:\[(.*?)\]/;
-    const foodMatch = normalizedResponse.match(foodSectionRegex);
+    
+    // Try multiple regex patterns to find the food section
+    const foodSectionPatterns = [
+      /LOCAL_FOOD:\s*\[(.*?)\]/i,
+      /LOCAL FOOD:\s*\[(.*?)\]/i,
+      /FOOD RECOMMENDATIONS:\s*\[(.*?)\]/i,
+      /LOCAL_CUISINE:\s*\[(.*?)\]/i
+    ];
+    
+    let foodMatch = null;
+    for (const pattern of foodSectionPatterns) {
+      foodMatch = normalizedResponse.match(pattern);
+      if (foodMatch && foodMatch[1]) break;
+    }
     
     if (foodMatch && foodMatch[1]) {
       try {
-        // Try to parse the JSON array
-        const foodJson = JSON.parse(`[${foodMatch[1]}]`);
-        if (Array.isArray(foodJson) && foodJson.length > 0) {
-          // Add IDs to each item
-          const foodItemsWithIds = foodJson.map(item => ({
-            ...item,
-            id: uuidv4(),
-            imageUrl: item.image_keyword ? 
-              `https://source.unsplash.com/featured/?${encodeURIComponent(item.image_keyword)}&w=400&h=300` : 
-              undefined
-          }));
-          
-          return foodItemsWithIds;
-        }
-      } catch (jsonError) {
-        console.error('Error parsing food JSON from Groq response:', jsonError);
+        // Clean up the JSON string before parsing
+        let jsonStr = foodMatch[1]
+          .replace(/◆/g, ' ')
+          .replace(/(\w+):/g, '"$1":')  // Add quotes to keys
+          .replace(/'/g, '"')  // Replace single quotes with double quotes
+          .replace(/,\s*}/g, '}')  // Remove trailing commas
+          .replace(/,\s*]/g, ']');  // Remove trailing commas in arrays
         
-        // Try regex-based extraction if JSON parsing fails
-        const individualFoodRegex = /{name:"([^"]+)",price:"([^"]+)",description:"([^"]+)",location:"([^"]+)",image_keyword:"([^"]+)"}/g;
-        let match;
-        while ((match = individualFoodRegex.exec(foodMatch[1])) !== null) {
-          foodItems.push({
-            id: uuidv4(),
-            name: match[1],
-            price: match[2],
-            description: match[3],
-            location: match[4],
-            imageUrl: `https://source.unsplash.com/featured/?${encodeURIComponent(match[5])}&w=400&h=300`
-          });
+        try {
+          // Try to parse the JSON array
+          const foodJson = JSON.parse(`[${jsonStr}]`);
+          if (Array.isArray(foodJson) && foodJson.length > 0) {
+            // Add IDs to each item
+            const foodItemsWithIds = foodJson.map(item => ({
+              ...item,
+              id: uuidv4(),
+              imageUrl: item.image_keyword ? 
+                `https://source.unsplash.com/featured/?${encodeURIComponent(item.image_keyword)}&w=400&h=300` : 
+                `https://source.unsplash.com/featured/?${encodeURIComponent(item.name + ' food')}&w=400&h=300`
+            }));
+            
+            return foodItemsWithIds;
+          }
+        } catch (jsonError) {
+          console.error('Error parsing food JSON from Groq response:', jsonError);
+          
+          // If normal JSON parsing fails, try a more lenient approach with regex
+          const individualFoodRegexes = [
+            /{[\s◆]*"?name"?[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*"?price"?[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*"?description"?[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*"?location"?[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*(?:,[\s◆]*"?image_keyword"?[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*)?}/g,
+            /{[\s◆]*name[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*price[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*description[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*location[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*(?:,[\s◆]*image_keyword[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*)?}/g
+          ];
+          
+          for (const regex of individualFoodRegexes) {
+            let match;
+            while ((match = regex.exec(foodMatch[1])) !== null) {
+              foodItems.push({
+                id: uuidv4(),
+                name: match[1],
+                price: match[2],
+                description: match[3],
+                location: match[4],
+                imageUrl: match[5] ? 
+                  `https://source.unsplash.com/featured/?${encodeURIComponent(match[5])}&w=400&h=300` : 
+                  `https://source.unsplash.com/featured/?${encodeURIComponent(match[1] + ' food')}&w=400&h=300`
+              });
+            }
+            if (foodItems.length > 0) break;
+          }
         }
+      } catch (preprocessError) {
+        console.error('Error preprocessing food JSON:', preprocessError);
       }
     }
     
-    // If we couldn't extract any food items, check if there are mentions of food in the text
+    // If we couldn't extract any food items, try a different approach
+    if (foodItems.length === 0) {
+      // Look for food sections in the text - common in model responses
+      const foodSectionStarts = [
+        'Local Food and Cuisine',
+        'Local Cuisine',
+        'Food Recommendations',
+        'Must-Try Local Dishes',
+        'Local Dishes to Try',
+        'Popular Foods'
+      ];
+      
+      for (const sectionStart of foodSectionStarts) {
+        const sectionRegex = new RegExp(`${sectionStart}[:\\s]+(.*?)(?=\\n\\n|\\n[A-Z][A-Za-z\\s]+:|$)`, 's');
+        const sectionMatch = response.match(sectionRegex);
+        
+        if (sectionMatch && sectionMatch[1]) {
+          const foodSection = sectionMatch[1];
+          // Look for numbered or bulleted list items
+          const foodItemRegex = /(?:^\d+\.\s*|\*\s*|•\s*|-)?\s*([A-Z][A-Za-z\s-]+)(?:\s*[-:–]\s*|\s*\(([^)]+)\)\s*[-:–]\s*)([^.]+)/gm;
+          
+          let foodItemMatch;
+          while ((foodItemMatch = foodItemRegex.exec(foodSection)) !== null) {
+            const name = foodItemMatch[1].trim();
+            const price = foodItemMatch[2] ? foodItemMatch[2].trim() : 'Variable';
+            let description = foodItemMatch[3].trim();
+            
+            // Extract price from description if not already found
+            if (price === 'Variable') {
+              const priceMatch = description.match(/(\$+|\¥[0-9,\.]+|[0-9,\.]+\s*(?:USD|JPY|yen))/i);
+              if (priceMatch) {
+                description = description.replace(priceMatch[0], '').trim();
+              }
+            }
+            
+            // Avoid duplicates
+            if (!foodItems.some(item => item.name.toLowerCase() === name.toLowerCase())) {
+              foodItems.push({
+                id: uuidv4(),
+                name,
+                price: price !== 'Variable' ? price : '$10-20',
+                description: description || 'A local specialty',
+                location: 'Local restaurant',
+                imageUrl: `https://source.unsplash.com/featured/?${encodeURIComponent(name + ' food')}&w=400&h=300`
+              });
+            }
+          }
+        }
+        
+        if (foodItems.length > 0) break;
+      }
+    }
+    
+    // Last resort: check if there are mentions of food in the text
     if (foodItems.length === 0) {
       const foodMentionRegex = /(?:local dish|popular food|must-try|food|cuisine)(?:\s+called|\s+is|\s+named)?\s+([A-Za-z\s-]+?)(?:[,.]\s+It's|[,.]\s+This|[,.]\s+Made|\s+at\s+([A-Za-z\s']+))/gi;
       
@@ -1362,73 +1448,178 @@ function extractLocalFood(response: string): any[] {
           foodItems.push({
             id: uuidv4(),
             name: dishName,
-            price: 'Variable',
-            description: `A local specialty mentioned in the guide`,
+            price: '$8-15',
+            description: `A delicious local specialty with authentic flavors`,
             location: restaurantName,
             imageUrl: `https://source.unsplash.com/featured/?${encodeURIComponent(dishName + ' food')}&w=400&h=300`
           });
         }
       }
     }
+    
+    // Make sure we have a good variety of food items
+    return foodItems.map((item, index) => ({
+      ...item,
+      // Ensure unique IDs
+      id: `food-${index}-${uuidv4().substring(0, 8)}`
+    }));
   } catch (error) {
     console.error('Error extracting local food information:', error);
+    return [];
   }
-  
-  return foodItems;
 }
 
 /**
  * Extract local attractions information from the response
  */
 function extractLocalAttractions(response: string): any[] {
-  const attractions = [];
+  const attractions: any[] = [];
   
   try {
     // Look for the LOCAL_ATTRACTIONS section in the response
     // Using a workaround for dotAll flag by replacing newlines with a character we can include in character class
     const normalizedResponse = response.replace(/\n/g, '◆');
-    const attractionSectionRegex = /LOCAL_ATTRACTIONS:\[(.*?)\]/;
-    const attractionMatch = normalizedResponse.match(attractionSectionRegex);
+    
+    // Try multiple regex patterns to find the attractions section
+    const attractionSectionPatterns = [
+      /LOCAL_ATTRACTIONS:\s*\[(.*?)\]/i,
+      /LOCAL ATTRACTIONS:\s*\[(.*?)\]/i,
+      /ATTRACTIONS:\s*\[(.*?)\]/i,
+      /ACTIVITIES:\s*\[(.*?)\]/i
+    ];
+    
+    let attractionMatch = null;
+    for (const pattern of attractionSectionPatterns) {
+      attractionMatch = normalizedResponse.match(pattern);
+      if (attractionMatch && attractionMatch[1]) break;
+    }
     
     if (attractionMatch && attractionMatch[1]) {
       try {
-        // Try to parse the JSON array
-        const attractionsJson = JSON.parse(`[${attractionMatch[1]}]`);
-        if (Array.isArray(attractionsJson) && attractionsJson.length > 0) {
-          // Add IDs to each item
-          const attractionsWithIds = attractionsJson.map(item => ({
-            ...item,
-            id: uuidv4(),
-            imageUrl: item.image_keyword ? 
-              `https://source.unsplash.com/featured/?${encodeURIComponent(item.image_keyword)}&w=400&h=300` : 
-              undefined,
-            // Convert hours to duration format if needed
-            duration: item.hours || '2-3 hours'
-          }));
-          
-          return attractionsWithIds;
-        }
-      } catch (jsonError) {
-        console.error('Error parsing attractions JSON from Groq response:', jsonError);
+        // Clean up the JSON string before parsing
+        let jsonStr = attractionMatch[1]
+          .replace(/◆/g, ' ')
+          .replace(/(\w+):/g, '"$1":')  // Add quotes to keys
+          .replace(/'/g, '"')  // Replace single quotes with double quotes
+          .replace(/,\s*}/g, '}')  // Remove trailing commas
+          .replace(/,\s*]/g, ']');  // Remove trailing commas in arrays
         
-        // Try regex-based extraction if JSON parsing fails
-        const individualAttractionRegex = /{name:"([^"]+)",price:"([^"]+)",description:"([^"]+)",location:"([^"]+)",hours:"([^"]+)",image_keyword:"([^"]+)"}/g;
-        let match;
-        while ((match = individualAttractionRegex.exec(attractionMatch[1])) !== null) {
-          attractions.push({
-            id: uuidv4(),
-            name: match[1],
-            price: match[2],
-            description: match[3],
-            location: match[4],
-            duration: match[5],
-            imageUrl: `https://source.unsplash.com/featured/?${encodeURIComponent(match[6])}&w=400&h=300`
-          });
+        try {
+          // Try to parse the JSON array
+          const attractionsJson = JSON.parse(`[${jsonStr}]`);
+          if (Array.isArray(attractionsJson) && attractionsJson.length > 0) {
+            // Add IDs to each item
+            const attractionsWithIds = attractionsJson.map(item => ({
+              ...item,
+              id: uuidv4(),
+              imageUrl: item.image_keyword ? 
+                `https://source.unsplash.com/featured/?${encodeURIComponent(item.image_keyword)}&w=400&h=300` : 
+                `https://source.unsplash.com/featured/?${encodeURIComponent(item.name + ' attraction')}&w=400&h=300`,
+              // Convert hours to duration format if needed
+              duration: item.hours || item.duration || '2-3 hours'
+            }));
+            
+            return attractionsWithIds;
+          }
+        } catch (jsonError) {
+          console.error('Error parsing attractions JSON from Groq response:', jsonError);
+          
+          // If normal JSON parsing fails, try a more lenient approach with regex
+          const individualAttractionRegexes = [
+            /{[\s◆]*"?name"?[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*"?price"?[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*"?description"?[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*"?location"?[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*"?(?:hours|duration)"?[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*(?:,[\s◆]*"?image_keyword"?[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*)?}/g,
+            /{[\s◆]*name[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*price[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*description[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*location[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*,[\s◆]*(?:hours|duration)[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*(?:,[\s◆]*image_keyword[\s◆]*:[\s◆]*"([^"]+)"[\s◆]*)?}/g
+          ];
+          
+          for (const regex of individualAttractionRegexes) {
+            let match;
+            while ((match = regex.exec(attractionMatch[1])) !== null) {
+              attractions.push({
+                id: uuidv4(),
+                name: match[1],
+                price: match[2],
+                description: match[3],
+                location: match[4],
+                duration: match[5],
+                imageUrl: match[6] ? 
+                  `https://source.unsplash.com/featured/?${encodeURIComponent(match[6])}&w=400&h=300` : 
+                  `https://source.unsplash.com/featured/?${encodeURIComponent(match[1] + ' attraction')}&w=400&h=300`
+              });
+            }
+            if (attractions.length > 0) break;
+          }
         }
+      } catch (preprocessError) {
+        console.error('Error preprocessing attractions JSON:', preprocessError);
       }
     }
     
-    // If we couldn't extract any attractions, check if there are mentions of attractions in the text
+    // If we couldn't extract any attractions, try a different approach
+    if (attractions.length === 0) {
+      // Look for attraction sections in the text - common in model responses
+      const attractionSectionStarts = [
+        'Local Attractions',
+        'Must-Visit Attractions',
+        'Places to Visit',
+        'Points of Interest',
+        'Top Attractions',
+        'Tourist Attractions'
+      ];
+      
+      for (const sectionStart of attractionSectionStarts) {
+        const sectionRegex = new RegExp(`${sectionStart}[:\\s]+(.*?)(?=\\n\\n|\\n[A-Z][A-Za-z\\s]+:|$)`, 's');
+        const sectionMatch = response.match(sectionRegex);
+        
+        if (sectionMatch && sectionMatch[1]) {
+          const attractionSection = sectionMatch[1];
+          // Look for numbered or bulleted list items
+          const attractionItemRegex = /(?:^\d+\.\s*|\*\s*|•\s*|-)?\s*([A-Z][A-Za-z\s-]+)(?:\s*[-:–]\s*|\s*\(([^)]+)\)\s*[-:–]\s*)([^.]+)/gm;
+          
+          let attractionItemMatch;
+          while ((attractionItemMatch = attractionItemRegex.exec(attractionSection)) !== null) {
+            const name = attractionItemMatch[1].trim();
+            const price = attractionItemMatch[2] ? attractionItemMatch[2].trim() : 'Variable';
+            let description = attractionItemMatch[3].trim();
+            
+            // Skip if this doesn't look like an attraction
+            if (name.length < 4 || description.length < 10 ||
+                /^(day|morning|afternoon|evening)$/i.test(name)) continue;
+            
+            // Extract price from description if not already found
+            if (price === 'Variable') {
+              const priceMatch = description.match(/(\$+|\¥[0-9,\.]+|[0-9,\.]+\s*(?:USD|JPY|yen))/i);
+              if (priceMatch) {
+                description = description.replace(priceMatch[0], '').trim();
+              }
+            }
+            
+            // Extract duration if mentioned
+            let duration = '2-3 hours';
+            const durationMatch = description.match(/(\d+(?:-\d+)?\s+(?:hour|hr|minute|min)s?)/i);
+            if (durationMatch) {
+              duration = durationMatch[1];
+              description = description.replace(durationMatch[0], '').trim();
+            }
+            
+            // Avoid duplicates
+            if (!attractions.some(item => item.name.toLowerCase() === name.toLowerCase())) {
+              attractions.push({
+                id: uuidv4(),
+                name,
+                price: price !== 'Variable' ? price : 'Free - $20',
+                description: description || 'A popular local attraction',
+                location: 'City center',
+                duration,
+                imageUrl: `https://source.unsplash.com/featured/?${encodeURIComponent(name)}&w=400&h=300`
+              });
+            }
+          }
+        }
+        
+        if (attractions.length > 0) break;
+      }
+    }
+    
+    // Last resort: check if there are mentions of attractions in the text
     if (attractions.length === 0) {
       const attractionMentionRegex = /(?:visit|explore|see|go to|attraction)(?:\s+the)?\s+([A-Za-z\s'-]+?)(?:[,.]\s+It's|[,.]\s+This|[,.]\s+Located|[,.]\s+Entry|\s+in\s+([A-Za-z\s']+))/gi;
       
@@ -1437,23 +1628,31 @@ function extractLocalAttractions(response: string): any[] {
         const attractionName = attractionMention[1].trim();
         const locationName = attractionMention[2] ? attractionMention[2].trim() : 'City center';
         
-        // Avoid duplicates
-        if (!attractions.some(item => item.name.toLowerCase() === attractionName.toLowerCase())) {
+        // Avoid duplicates and generic terms
+        if (!attractions.some(item => item.name.toLowerCase() === attractionName.toLowerCase()) && 
+            attractionName.length > 4 && 
+            !attractionName.match(/^(area|city|district|morning|afternoon|evening)$/i)) {
           attractions.push({
             id: uuidv4(),
             name: attractionName,
-            price: 'Variable',
-            description: `A popular attraction mentioned in the guide`,
+            price: 'Free - $20',
+            description: `An authentic local experience offering a glimpse into the local culture and heritage`,
             location: locationName,
-            duration: '2-3 hours',
-            imageUrl: `https://source.unsplash.com/featured/?${encodeURIComponent(attractionName + ' attraction landmark')}&w=400&h=300`
+            duration: '1-3 hours',
+            imageUrl: `https://source.unsplash.com/featured/?${encodeURIComponent(attractionName)}&w=400&h=300`
           });
         }
       }
     }
+    
+    // Make sure we have a good variety of attractions
+    return attractions.map((item, index) => ({
+      ...item,
+      // Ensure unique IDs
+      id: `attraction-${index}-${uuidv4().substring(0, 8)}`
+    }));
   } catch (error) {
     console.error('Error extracting local attractions information:', error);
+    return [];
   }
-  
-  return attractions;
 }
