@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import ChatMessage from './ChatMessage';
 import TypingIndicator from './TypingIndicator';
 import ChatInput from './ChatInput';
-import { Message, Location, Itinerary, Weather } from '@/lib/types';
+import { Message, Location, Itinerary, Weather, LocalFood, LocalAttraction } from '@/lib/types';
 import { sendMessage } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
@@ -14,6 +14,8 @@ interface ChatContainerProps {
   onLocationsUpdate: (locations: Location[]) => void;
   onItineraryUpdate: (itinerary: Itinerary | null) => void;
   onWeatherUpdate: (weather: Weather | null) => void;
+  onLocalFoodUpdate?: (localFood: LocalFood[]) => void;
+  onLocalAttractionsUpdate?: (localAttractions: LocalAttraction[]) => void;
   itinerary: Itinerary | null;
 }
 
@@ -25,6 +27,8 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
   onLocationsUpdate,
   onItineraryUpdate,
   onWeatherUpdate,
+  onLocalFoodUpdate,
+  onLocalAttractionsUpdate,
   itinerary
 }) => {
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -71,6 +75,16 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
       // Process weather data if available
       if (response.weather) {
         onWeatherUpdate(response.weather);
+      }
+      
+      // Process local food data if available
+      if (response.localFood && response.localFood.length > 0 && onLocalFoodUpdate) {
+        onLocalFoodUpdate(response.localFood);
+      }
+      
+      // Process local attractions data if available
+      if (response.localAttractions && response.localAttractions.length > 0 && onLocalAttractionsUpdate) {
+        onLocalAttractionsUpdate(response.localAttractions);
       }
     } catch (error) {
       console.error('Error sending message:', error);

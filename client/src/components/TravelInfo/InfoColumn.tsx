@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, RefreshCw } from "lucide-react";
-import { Weather, Itinerary, MapMarker } from '@/lib/types';
+import { Weather, Itinerary, MapMarker, LocalFood, LocalAttraction } from '@/lib/types';
 import { WeatherCard } from '@/components/TravelInfo/cards/WeatherCard';
 import { FlightCard } from '@/components/TravelInfo/cards/FlightCard';
 import { HotelCard } from '@/components/TravelInfo/cards/HotelCard';
@@ -21,13 +21,17 @@ interface InfoColumnProps {
   weather: Weather | null;
   markers: MapMarker[];
   itinerary: Itinerary | null;
+  localFood?: LocalFood[];
+  localAttractions?: LocalAttraction[];
 }
 
 const InfoColumn: React.FC<InfoColumnProps> = ({
   currentLocation,
   weather,
   markers,
-  itinerary
+  itinerary,
+  localFood = [],
+  localAttractions = []
 }) => {
   const [activeTab, setActiveTab] = useState("overview");
   const [flights, setFlights] = useState<any[]>([]);
@@ -345,11 +349,29 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center">
                   <i className="fas fa-utensils text-primary mr-2"></i>
-                  Recommended Restaurants
+                  Local Cuisine
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {restaurantMarkers.length > 0 ? (
+                {localFood.length > 0 ? (
+                  localFood.map((food, index) => (
+                    <div key={food.id}>
+                      <RestaurantCard
+                        restaurant={{
+                          id: food.id,
+                          name: food.name,
+                          cuisine: food.description.split('.')[0],
+                          address: food.location,
+                          price: food.price,
+                          rating: 4.5,
+                          openingHours: "11:00 AM - 10:00 PM",
+                          imageUrl: food.imageUrl
+                        }}
+                      />
+                      {index < localFood.length - 1 && <Separator className="my-3" />}
+                    </div>
+                  ))
+                ) : restaurantMarkers.length > 0 ? (
                   restaurantMarkers.map((restaurant, index) => (
                     <div key={restaurant.id}>
                       <RestaurantCard
@@ -369,7 +391,7 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                 ) : (
                   <div className="text-center py-6 text-muted-foreground">
                     <i className="fas fa-utensils text-4xl mb-2 opacity-20"></i>
-                    <p>No restaurants found for this location yet.</p>
+                    <p>No local food data available for this location yet.</p>
                     <p className="text-sm">Ask about local cuisine in the chat!</p>
                   </div>
                 )}
@@ -382,11 +404,30 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center">
                   <i className="fas fa-hiking text-primary mr-2"></i>
-                  Popular Activities
+                  Authentic Local Experiences
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {attractionMarkers.length > 0 ? (
+                {localAttractions.length > 0 ? (
+                  localAttractions.map((attraction, index) => (
+                    <div key={attraction.id}>
+                      <ActivityCard
+                        activity={{
+                          id: attraction.id,
+                          name: attraction.name,
+                          type: 'Local Experience',
+                          price: attraction.price,
+                          duration: attraction.duration,
+                          location: attraction.location,
+                          rating: 4.8,
+                          description: attraction.description,
+                          imageUrl: attraction.imageUrl
+                        }}
+                      />
+                      {index < localAttractions.length - 1 && <Separator className="my-3" />}
+                    </div>
+                  ))
+                ) : attractionMarkers.length > 0 ? (
                   attractionMarkers.map((attraction, index) => (
                     <div key={attraction.id}>
                       <ActivityCard
@@ -407,8 +448,8 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                 ) : (
                   <div className="text-center py-6 text-muted-foreground">
                     <i className="fas fa-hiking text-4xl mb-2 opacity-20"></i>
-                    <p>No activities found for this location yet.</p>
-                    <p className="text-sm">Ask about things to do in the chat!</p>
+                    <p>No local activities found for this location yet.</p>
+                    <p className="text-sm">Ask about authentic experiences in the chat!</p>
                   </div>
                 )}
               </CardContent>

@@ -62,6 +62,8 @@ export interface ChatResponse {
   locations?: Location[];
   itinerary?: Itinerary;
   weather?: Weather;
+  localFood?: LocalFood[];
+  localAttractions?: LocalAttraction[];
 }
 
 // Map marker type
@@ -71,4 +73,25 @@ export interface MapMarker {
   longitude: number;
   name: string;
   type: string;
+}
+
+// Local food type
+export interface LocalFood {
+  id: string;
+  name: string;
+  price: string;
+  description: string;
+  location: string;
+  imageUrl?: string;
+}
+
+// Local attraction type
+export interface LocalAttraction {
+  id: string;
+  name: string;
+  price: string;
+  description: string;
+  location: string;
+  duration: string;
+  imageUrl?: string;
 }

@@ -73,7 +73,7 @@ export async function processMessage(message: string): Promise<any> {
     }
     
     // Extract relevant information
-    const { responseText, locations, itinerary, weather } = await extractInformation(groqResponse, message, travelSession);
+    const { responseText, locations, itinerary, weather, localFood, localAttractions } = await extractInformation(groqResponse, message, travelSession);
     
     // Add assistant response to history
     history.push({
@@ -109,6 +109,8 @@ export async function processMessage(message: string): Promise<any> {
       locations,
       itinerary,
       weather,
+      localFood,
+      localAttractions,
       travelSession,
     };
   } catch (error) {
@@ -137,20 +139,38 @@ async function callGroqAPI(history: any[]): Promise<string> {
     - Hotel recommendations
     - Weather forecasts
     - Itinerary planning
-    - Local activity suggestions
+    - Local activity suggestions with hyperspecific details
     - Budget planning
+    - Food recommendations with authentic local cuisine options
     
     INSTRUCTIONS:
     - When the user wants to plan a trip, ask for missing details: origin, destination, dates, budget.
     - If the user mentions a budget, convert it to USD if needed for consistency.
     - For flight searches, determine the IATA codes for airports when possible.
-    - Create detailed day-by-day itineraries when requested.
+    - Create detailed day-by-day itineraries when requested with hyperspecific location names.
+    - When suggesting activities, restaurants, or attractions, always provide actual location names, not generic descriptions.
+    - For food recommendations, include authentic local dishes with their actual names, pricing in local currency, and where to find them.
+    - For activities, include actual venue names, districts, neighborhoods, and pricing information.
+    - Always include specific local details that only a knowledgeable local would know.
     - Respond conversationally and helpfully.
     - Always maintain context from the conversation history.
     
+    HYPERSPECIFIC DETAILS FORMAT:
+    When the user asks about a destination, include in your response information that can be extracted in this format:
+    
+    LOCAL_FOOD:[{name:"Dish Name",price:"Price range",description:"Brief description",location:"Restaurant or area name",image_keyword:"dish name food"}]
+    
+    LOCAL_ATTRACTIONS:[{name:"Attraction Name",price:"Entrance fee if any",description:"Brief description",location:"Exact location",hours:"Opening hours",image_keyword:"attraction name landmark"}]
+    
     EXAMPLE PATTERN:
     User: "I want to travel from Hyderabad to Vietnam for 4 days with a budget of ₹100,000."
-    Assistant: "I'd be happy to help you plan your 4-day trip from Hyderabad to Vietnam with a budget of ₹100,000 (approximately $1,200 USD). When would you like to travel? I'll need your departure and return dates to search for flights."`;
+    Assistant: "I'd be happy to help you plan your 4-day trip from Hyderabad to Vietnam with a budget of ₹100,000 (approximately $1,200 USD). When would you like to travel? I'll need your departure and return dates to search for flights.
+    
+    While we're planning, Vietnam has so many amazing experiences! In Hanoi, you should try Bún Chả (grilled pork with rice noodles) at Bún Chả Hương Liên where Obama ate, it costs around 60,000-80,000 VND. For sightseeing, don't miss Hoan Kiem Lake and the Temple of Literature (Văn Miếu-Quốc Tử Giám), entrance fee 30,000 VND, open 8:00 AM-5:00 PM."
+    
+    LOCAL_FOOD:[{name:"Bún Chả",price:"60,000-80,000 VND",description:"Grilled pork with rice noodles",location:"Bún Chả Hương Liên",image_keyword:"bun cha vietnamese food"}]
+    
+    LOCAL_ATTRACTIONS:[{name:"Temple of Literature",price:"30,000 VND",description:"Vietnam's first national university",location:"58 Quốc Tử Giám, Hanoi",hours:"8:00 AM-5:00 PM",image_keyword:"temple of literature hanoi"}]`;
     
     // Call the Groq API
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -253,6 +273,8 @@ async function extractInformation(response: string, userMessage: string, travelS
     locations: [],
     itinerary: null,
     weather: null,
+    localFood: [],
+    localAttractions: []
   };
   
   // Extract location information
@@ -349,6 +371,12 @@ async function extractInformation(response: string, userMessage: string, travelS
       console.error('Error fetching flight or hotel options:', error);
     }
   }
+  
+  // Extract local food recommendations
+  result.localFood = extractLocalFood(response);
+  
+  // Extract local attractions
+  result.localAttractions = extractLocalAttractions(response);
   
   return result;
 }
@@ -1098,4 +1126,162 @@ function generateMockResponse(userMessage: string): string {
     "🗺️ Customized itineraries - Plans tailored to your interests and timeframe\n" +
     "☀️ Weather guidance - What to expect and pack for your trip\n\n" +
     "Simply tell me where you'd like to go or what you'd like to know, and I'll provide personalized recommendations. For example, you could ask about 'restaurants in Barcelona' or 'a 3-day itinerary for Tokyo'.";
+}
+
+/**
+ * Extract local food information from the response
+ */
+function extractLocalFood(response: string): any[] {
+  const foodItems = [];
+  
+  try {
+    // Look for the LOCAL_FOOD section in the response
+    // Using a workaround for dotAll flag by replacing newlines with a character we can include in character class
+    const normalizedResponse = response.replace(/\n/g, '◆');
+    const foodSectionRegex = /LOCAL_FOOD:\[(.*?)\]/;
+    const foodMatch = normalizedResponse.match(foodSectionRegex);
+    
+    if (foodMatch && foodMatch[1]) {
+      try {
+        // Try to parse the JSON array
+        const foodJson = JSON.parse(`[${foodMatch[1]}]`);
+        if (Array.isArray(foodJson) && foodJson.length > 0) {
+          // Add IDs to each item
+          const foodItemsWithIds = foodJson.map(item => ({
+            ...item,
+            id: uuidv4(),
+            imageUrl: item.image_keyword ? 
+              `https://source.unsplash.com/featured/?${encodeURIComponent(item.image_keyword)}&w=400&h=300` : 
+              undefined
+          }));
+          
+          return foodItemsWithIds;
+        }
+      } catch (jsonError) {
+        console.error('Error parsing food JSON from Groq response:', jsonError);
+        
+        // Try regex-based extraction if JSON parsing fails
+        const individualFoodRegex = /{name:"([^"]+)",price:"([^"]+)",description:"([^"]+)",location:"([^"]+)",image_keyword:"([^"]+)"}/g;
+        let match;
+        while ((match = individualFoodRegex.exec(foodMatch[1])) !== null) {
+          foodItems.push({
+            id: uuidv4(),
+            name: match[1],
+            price: match[2],
+            description: match[3],
+            location: match[4],
+            imageUrl: `https://source.unsplash.com/featured/?${encodeURIComponent(match[5])}&w=400&h=300`
+          });
+        }
+      }
+    }
+    
+    // If we couldn't extract any food items, check if there are mentions of food in the text
+    if (foodItems.length === 0) {
+      const foodMentionRegex = /(?:local dish|popular food|must-try|food|cuisine)(?:\s+called|\s+is|\s+named)?\s+([A-Za-z\s-]+?)(?:[,.]\s+It's|[,.]\s+This|[,.]\s+Made|\s+at\s+([A-Za-z\s']+))/gi;
+      
+      let foodMention;
+      while ((foodMention = foodMentionRegex.exec(response)) !== null) {
+        const dishName = foodMention[1].trim();
+        const restaurantName = foodMention[2] ? foodMention[2].trim() : 'Local restaurant';
+        
+        // Avoid duplicates
+        if (!foodItems.some(item => item.name.toLowerCase() === dishName.toLowerCase())) {
+          foodItems.push({
+            id: uuidv4(),
+            name: dishName,
+            price: 'Variable',
+            description: `A local specialty mentioned in the guide`,
+            location: restaurantName,
+            imageUrl: `https://source.unsplash.com/featured/?${encodeURIComponent(dishName + ' food')}&w=400&h=300`
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error extracting local food information:', error);
+  }
+  
+  return foodItems;
+}
+
+/**
+ * Extract local attractions information from the response
+ */
+function extractLocalAttractions(response: string): any[] {
+  const attractions = [];
+  
+  try {
+    // Look for the LOCAL_ATTRACTIONS section in the response
+    // Using a workaround for dotAll flag by replacing newlines with a character we can include in character class
+    const normalizedResponse = response.replace(/\n/g, '◆');
+    const attractionSectionRegex = /LOCAL_ATTRACTIONS:\[(.*?)\]/;
+    const attractionMatch = normalizedResponse.match(attractionSectionRegex);
+    
+    if (attractionMatch && attractionMatch[1]) {
+      try {
+        // Try to parse the JSON array
+        const attractionsJson = JSON.parse(`[${attractionMatch[1]}]`);
+        if (Array.isArray(attractionsJson) && attractionsJson.length > 0) {
+          // Add IDs to each item
+          const attractionsWithIds = attractionsJson.map(item => ({
+            ...item,
+            id: uuidv4(),
+            imageUrl: item.image_keyword ? 
+              `https://source.unsplash.com/featured/?${encodeURIComponent(item.image_keyword)}&w=400&h=300` : 
+              undefined,
+            // Convert hours to duration format if needed
+            duration: item.hours || '2-3 hours'
+          }));
+          
+          return attractionsWithIds;
+        }
+      } catch (jsonError) {
+        console.error('Error parsing attractions JSON from Groq response:', jsonError);
+        
+        // Try regex-based extraction if JSON parsing fails
+        const individualAttractionRegex = /{name:"([^"]+)",price:"([^"]+)",description:"([^"]+)",location:"([^"]+)",hours:"([^"]+)",image_keyword:"([^"]+)"}/g;
+        let match;
+        while ((match = individualAttractionRegex.exec(attractionMatch[1])) !== null) {
+          attractions.push({
+            id: uuidv4(),
+            name: match[1],
+            price: match[2],
+            description: match[3],
+            location: match[4],
+            duration: match[5],
+            imageUrl: `https://source.unsplash.com/featured/?${encodeURIComponent(match[6])}&w=400&h=300`
+          });
+        }
+      }
+    }
+    
+    // If we couldn't extract any attractions, check if there are mentions of attractions in the text
+    if (attractions.length === 0) {
+      const attractionMentionRegex = /(?:visit|explore|see|go to|attraction)(?:\s+the)?\s+([A-Za-z\s'-]+?)(?:[,.]\s+It's|[,.]\s+This|[,.]\s+Located|[,.]\s+Entry|\s+in\s+([A-Za-z\s']+))/gi;
+      
+      let attractionMention;
+      while ((attractionMention = attractionMentionRegex.exec(response)) !== null) {
+        const attractionName = attractionMention[1].trim();
+        const locationName = attractionMention[2] ? attractionMention[2].trim() : 'City center';
+        
+        // Avoid duplicates
+        if (!attractions.some(item => item.name.toLowerCase() === attractionName.toLowerCase())) {
+          attractions.push({
+            id: uuidv4(),
+            name: attractionName,
+            price: 'Variable',
+            description: `A popular attraction mentioned in the guide`,
+            location: locationName,
+            duration: '2-3 hours',
+            imageUrl: `https://source.unsplash.com/featured/?${encodeURIComponent(attractionName + ' attraction landmark')}&w=400&h=300`
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error extracting local attractions information:', error);
+  }
+  
+  return attractions;
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import ChatContainer from '@/components/Chat/ChatContainer';
 import MapContainer from '@/components/Map/MapContainer';
-import { Message, Location, MapMarker, Itinerary, Weather } from '@/lib/types';
+import { Message, Location, MapMarker, Itinerary, Weather, LocalFood, LocalAttraction } from '@/lib/types';
 import { getChatHistory, clearChatHistory } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import InfoColumn from '../components/TravelInfo/InfoColumn';
@@ -14,6 +14,8 @@ export default function Home() {
   const [currentLocation, setCurrentLocation] = useState<string>('');
   const [itinerary, setItinerary] = useState<Itinerary | null>(null);
   const [weather, setWeather] = useState<Weather | null>(null);
+  const [localFood, setLocalFood] = useState<LocalFood[]>([]);
+  const [localAttractions, setLocalAttractions] = useState<LocalAttraction[]>([]);
   const [selectedTab, setSelectedTab] = useState('chat'); // 'chat', 'info'
   const { toast } = useToast();
 
@@ -32,6 +34,8 @@ export default function Home() {
     setCurrentLocation('');
     setItinerary(null);
     setWeather(null);
+    setLocalFood([]);
+    setLocalAttractions([]);
     
     // Clear chat history on the server
     try {
@@ -227,6 +231,20 @@ export default function Home() {
       setWeather(newWeather);
     }
   };
+  
+  // Handle local food updates
+  const handleLocalFoodUpdate = (newLocalFood: LocalFood[] | undefined) => {
+    if (newLocalFood && newLocalFood.length > 0) {
+      setLocalFood(newLocalFood);
+    }
+  };
+  
+  // Handle local attractions updates
+  const handleLocalAttractionsUpdate = (newLocalAttractions: LocalAttraction[] | undefined) => {
+    if (newLocalAttractions && newLocalAttractions.length > 0) {
+      setLocalAttractions(newLocalAttractions);
+    }
+  };
 
   // Mobile navigation component
   const MobileNavigation = () => (
@@ -314,6 +332,8 @@ export default function Home() {
             onLocationsUpdate={handleLocationsUpdate}
             onItineraryUpdate={handleItineraryUpdate}
             onWeatherUpdate={handleWeatherUpdate}
+            onLocalFoodUpdate={handleLocalFoodUpdate}
+            onLocalAttractionsUpdate={handleLocalAttractionsUpdate}
             itinerary={itinerary}
           />
         </div>
@@ -328,6 +348,8 @@ export default function Home() {
             weather={weather}
             markers={markers}
             itinerary={itinerary}
+            localFood={localFood}
+            localAttractions={localAttractions}
           />
         </div>
       </main>
