@@ -82,6 +82,26 @@
     @apply bg-[rgba(255,255,255,0.09)] backdrop-blur-[15px] rounded-lg border border-[rgba(255,255,255,0.15)];
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   }
+  
+  /* Column containers */
+  .glass-column {
+    @apply bg-[rgba(20,20,30,0.6)] backdrop-blur-[15px] rounded-lg border border-[rgba(255,255,255,0.05)] w-full h-full shadow-lg;
+  }
+  
+  /* Tab list styles */
+  .glass-tab-list {
+    @apply bg-[rgba(0,0,0,0.2)] border-b border-[rgba(255,255,255,0.05)];
+  }
+  
+  /* Button styles */
+  .glass-btn {
+    @apply bg-[rgba(255,255,255,0.09)] hover:bg-[rgba(255,255,255,0.15)] border border-[rgba(255,255,255,0.1)];
+  }
+  
+  /* Input styles */
+  .glass-input {
+    @apply bg-[rgba(0,0,0,0.2)] border border-[rgba(255,255,255,0.05)] focus:border-primary/50;
+  }
 
   /* Message bubbles */
   .user-bubble {

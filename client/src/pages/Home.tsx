@@ -4,6 +4,8 @@ import MapContainer from '@/components/Map/MapContainer';
 import { Message, Location, MapMarker, Itinerary, Weather } from '@/lib/types';
 import { getChatHistory } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import InfoColumn from '../components/TravelInfo/InfoColumn';
+import SocialColumn from '../components/Social/SocialColumn';
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -12,6 +14,7 @@ export default function Home() {
   const [currentLocation, setCurrentLocation] = useState<string>('');
   const [itinerary, setItinerary] = useState<Itinerary | null>(null);
   const [weather, setWeather] = useState<Weather | null>(null);
+  const [selectedTab, setSelectedTab] = useState('chat'); // 'chat', 'info', 'social'
   const { toast } = useToast();
 
   useEffect(() => {
@@ -75,6 +78,33 @@ export default function Home() {
     }
   };
 
+  // Mobile navigation component
+  const MobileNavigation = () => (
+    <div className="lg:hidden w-full flex items-center justify-around glass-darker p-2 rounded-lg mb-4">
+      <button 
+        onClick={() => setSelectedTab('chat')}
+        className={`flex items-center justify-center p-2 rounded-lg ${selectedTab === 'chat' ? 'bg-primary/20 text-primary' : 'text-muted-foreground'}`}
+      >
+        <i className="fas fa-comment-alt mr-2"></i>
+        <span>Chat</span>
+      </button>
+      <button 
+        onClick={() => setSelectedTab('info')}
+        className={`flex items-center justify-center p-2 rounded-lg ${selectedTab === 'info' ? 'bg-primary/20 text-primary' : 'text-muted-foreground'}`}
+      >
+        <i className="fas fa-info-circle mr-2"></i>
+        <span>Travel Info</span>
+      </button>
+      <button 
+        onClick={() => setSelectedTab('social')}
+        className={`flex items-center justify-center p-2 rounded-lg ${selectedTab === 'social' ? 'bg-primary/20 text-primary' : 'text-muted-foreground'}`}
+      >
+        <i className="fas fa-users mr-2"></i>
+        <span>Social</span>
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex flex-col h-screen p-4 lg:p-6 overflow-hidden">
       <header className="glass flex items-center justify-between mb-6 p-3 lg:p-4 rounded-xl">
@@ -107,9 +137,14 @@ export default function Home() {
         </div>
       </header>
       
-      <main className="flex flex-col lg:flex-row flex-1 gap-5 overflow-hidden">
-        {/* Chat Interface - 60% width on desktop */}
-        <div className="flex-1 lg:w-3/5 lg:flex-[0.6]">
+      <MobileNavigation />
+      
+      <main className="flex flex-col lg:flex-row flex-1 gap-4 overflow-hidden">
+        {/* Chat Interface - 1/3 width on desktop, full on mobile when selected */}
+        <div className={`
+          ${selectedTab === 'chat' ? 'flex' : 'hidden'} 
+          lg:flex flex-1 lg:w-1/3 lg:flex-[1] transition-all
+        `}>
           <ChatContainer 
             messages={messages}
             setMessages={setMessages}
@@ -122,15 +157,38 @@ export default function Home() {
           />
         </div>
         
-        {/* Map & Data Visualization - 40% width on desktop */}
-        <div className="flex-1 lg:w-2/5 lg:flex-[0.4] flex flex-col">
-          <MapContainer 
-            markers={markers}
+        {/* Travel Information Column - 1/3 width on desktop, full on mobile when selected */}
+        <div className={`
+          ${selectedTab === 'info' ? 'flex' : 'hidden'} 
+          lg:flex flex-1 lg:w-1/3 lg:flex-[1] transition-all
+        `}>
+          <InfoColumn 
             currentLocation={currentLocation}
             weather={weather}
+            markers={markers}
+            itinerary={itinerary}
+          />
+        </div>
+        
+        {/* Social & Integrations Column - 1/3 width on desktop, full on mobile when selected */}
+        <div className={`
+          ${selectedTab === 'social' ? 'flex' : 'hidden'} 
+          lg:flex flex-1 lg:w-1/3 lg:flex-[1] transition-all
+        `}>
+          <SocialColumn 
+            currentLocation={currentLocation}
           />
         </div>
       </main>
+      
+      {/* Bottom Map Area - Hidden on mobile, shown on all desktop layouts */}
+      <div className="hidden lg:block h-80 mt-4">
+        <MapContainer 
+          markers={markers}
+          currentLocation={currentLocation}
+          weather={weather}
+        />
+      </div>
     </div>
   );
 }
