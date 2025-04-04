@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { Weather, Itinerary, MapMarker } from '@/lib/types';
 import { WeatherCard } from '@/components/TravelInfo/cards/WeatherCard';
 import { FlightCard } from '@/components/TravelInfo/cards/FlightCard';
@@ -11,6 +14,7 @@ import { RestaurantCard } from '@/components/TravelInfo/cards/RestaurantCard';
 import { ActivityCard } from '@/components/TravelInfo/cards/ActivityCard';
 import ItineraryCard from '../Itinerary/ItineraryCard';
 import InfoCards from '../Map/InfoCards';
+import { searchFlights, searchHotels, getWeatherForLocation } from '@/lib/api';
 
 interface InfoColumnProps {
   currentLocation: string;
@@ -26,11 +30,116 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
   itinerary
 }) => {
   const [activeTab, setActiveTab] = useState("overview");
+  const [flights, setFlights] = useState<any[]>([]);
+  const [hotels, setHotels] = useState<any[]>([]);
+  const [flightsLoading, setFlightsLoading] = useState(false);
+  const [hotelsLoading, setHotelsLoading] = useState(false);
+  const [flightsError, setFlightsError] = useState<string | null>(null);
+  const [hotelsError, setHotelsError] = useState<string | null>(null);
   
   // Filter markers by type
   const restaurantMarkers = markers.filter(marker => marker.type === 'food');
   const attractionMarkers = markers.filter(marker => marker.type === 'attraction' || marker.type === 'landmark');
   const hotelMarkers = markers.filter(marker => marker.type === 'hotel');
+  
+  // Load flight data when the active tab changes to flights
+  useEffect(() => {
+    async function loadFlightData() {
+      if (activeTab === 'flights' && currentLocation && flights.length === 0 && !flightsLoading) {
+        setFlightsLoading(true);
+        setFlightsError(null);
+        
+        try {
+          // For demonstration purposes, we're using hardcoded origins and dates
+          const origins = ['New York', 'London', 'Tokyo'];
+          const today = new Date();
+          const departDate = new Date(today);
+          departDate.setDate(today.getDate() + 7); // 1 week from now
+          const returnDate = new Date(departDate);
+          returnDate.setDate(departDate.getDate() + 7); // 1 week after departure
+          
+          // Format dates as YYYY-MM-DD
+          const departFormatted = departDate.toISOString().split('T')[0];
+          const returnFormatted = returnDate.toISOString().split('T')[0];
+          
+          // Fetch flights from multiple origins
+          const flightPromises = origins.map(origin => 
+            searchFlights(origin, currentLocation, departFormatted, returnFormatted)
+          );
+          
+          // Wait for all flight searches to complete
+          const results = await Promise.all(flightPromises);
+          
+          // Flatten results and take first 3 flights
+          const allFlights = results.flat().slice(0, 3);
+          
+          if (allFlights.length > 0) {
+            setFlights(allFlights);
+          } else {
+            setFlightsError('No flights found for this destination.');
+          }
+        } catch (error) {
+          console.error('Error loading flight data:', error);
+          setFlightsError('Unable to load flight information.');
+        } finally {
+          setFlightsLoading(false);
+        }
+      }
+    }
+    
+    loadFlightData();
+  }, [activeTab, currentLocation, flights.length, flightsLoading]);
+  
+  // Load hotel data when the active tab changes to hotels
+  useEffect(() => {
+    async function loadHotelData() {
+      if (activeTab === 'hotels' && currentLocation && hotels.length === 0 && !hotelsLoading) {
+        setHotelsLoading(true);
+        setHotelsError(null);
+        
+        try {
+          // Set check-in/out dates for a typical stay
+          const today = new Date();
+          const checkInDate = new Date(today);
+          checkInDate.setDate(today.getDate() + 7); // 1 week from now
+          const checkOutDate = new Date(checkInDate);
+          checkOutDate.setDate(checkInDate.getDate() + 3); // 3-night stay
+          
+          // Format dates as YYYY-MM-DD
+          const checkInFormatted = checkInDate.toISOString().split('T')[0];
+          const checkOutFormatted = checkOutDate.toISOString().split('T')[0];
+          
+          // Fetch hotel data
+          const hotelResults = await searchHotels(currentLocation, checkInFormatted, checkOutFormatted);
+          
+          if (hotelResults.length > 0) {
+            setHotels(hotelResults);
+          } else {
+            setHotelsError('No hotels found for this destination.');
+          }
+        } catch (error) {
+          console.error('Error loading hotel data:', error);
+          setHotelsError('Unable to load hotel information.');
+        } finally {
+          setHotelsLoading(false);
+        }
+      }
+    }
+    
+    loadHotelData();
+  }, [activeTab, currentLocation, hotels.length, hotelsLoading]);
+  
+  // Function to refresh flight data
+  const refreshFlights = () => {
+    setFlights([]);
+    setFlightsLoading(false);
+  };
+  
+  // Function to refresh hotel data
+  const refreshHotels = () => {
+    setHotels([]);
+    setHotelsLoading(false);
+  };
   
   return (
     <div className="h-full flex flex-col glass-column overflow-hidden">
@@ -101,23 +210,48 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
           
           <TabsContent value="hotels" className="mt-0 space-y-4">
             <Card className="glass-darker overflow-hidden">
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-2 flex flex-row justify-between items-center">
                 <CardTitle className="text-lg flex items-center">
                   <i className="fas fa-hotel text-primary mr-2"></i>
                   Top Hotels
                 </CardTitle>
+                {hotels.length > 0 && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={refreshHotels}
+                    disabled={hotelsLoading}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${hotelsLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
-                {hotelMarkers.length > 0 ? (
+                {hotelsLoading ? (
+                  <div className="text-center py-6">
+                    <div className="animate-pulse mb-2">
+                      <i className="fas fa-spinner fa-spin text-2xl"></i>
+                    </div>
+                    <p>Finding the best hotels in {currentLocation}...</p>
+                  </div>
+                ) : hotels.length > 0 ? (
+                  hotels.map((hotel, index) => (
+                    <div key={hotel.id}>
+                      <HotelCard hotel={hotel} />
+                      {index < hotels.length - 1 && <Separator className="my-3" />}
+                    </div>
+                  ))
+                ) : hotelMarkers.length > 0 ? (
                   hotelMarkers.map((hotel, index) => (
                     <div key={hotel.id}>
                       <HotelCard
                         hotel={{
                           id: hotel.id,
                           name: hotel.name,
-                          address: "Downtown",
-                          price: { amount: 120, currency: "USD" },
-                          rating: 4.5,
+                          address: currentLocation,
+                          price: { amount: 120 + (index * 30), currency: "USD" },
+                          rating: 4.0 + (index * 0.2),
                           amenities: ["Wifi", "Breakfast", "Pool"]
                         }}
                       />
@@ -125,11 +259,21 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                     </div>
                   ))
                 ) : (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <i className="fas fa-hotel text-4xl mb-2 opacity-20"></i>
-                    <p>No hotels found for this location yet.</p>
-                    <p className="text-sm">Ask about accommodations in the chat!</p>
-                  </div>
+                  <>
+                    {hotelsError && (
+                      <Alert variant="destructive" className="mb-4">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          {hotelsError}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    <div className="text-center py-6 text-muted-foreground">
+                      <i className="fas fa-hotel text-4xl mb-2 opacity-20"></i>
+                      <p>No hotels found for this location yet.</p>
+                      <p className="text-sm">Ask about accommodations in the chat!</p>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -137,71 +281,59 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
           
           <TabsContent value="flights" className="mt-0 space-y-4">
             <Card className="glass-darker overflow-hidden">
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-2 flex flex-row justify-between items-center">
                 <CardTitle className="text-lg flex items-center">
                   <i className="fas fa-plane text-primary mr-2"></i>
                   Available Flights
                 </CardTitle>
+                {flights.length > 0 && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={refreshFlights}
+                    disabled={flightsLoading}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${flightsLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
-                {currentLocation ? (
+                {flightsLoading ? (
+                  <div className="text-center py-6">
+                    <div className="animate-pulse mb-2">
+                      <i className="fas fa-spinner fa-spin text-2xl"></i>
+                    </div>
+                    <p>Searching for flights to {currentLocation}...</p>
+                  </div>
+                ) : flights.length > 0 ? (
+                  flights.map((flight, index) => (
+                    <div key={flight.id}>
+                      <FlightCard flight={flight} />
+                      {index < flights.length - 1 && <Separator className="my-3" />}
+                    </div>
+                  ))
+                ) : currentLocation ? (
                   <>
-                    <FlightCard
-                      flight={{
-                        id: "flight1",
-                        departure: "New York",
-                        destination: currentLocation,
-                        departureTime: "08:30",
-                        arrivalTime: "17:55",
-                        departureDate: "2025-04-15",
-                        price: { amount: 450, currency: "USD" },
-                        airline: "Air France",
-                        flightNumber: "AF123",
-                        duration: "9h 25m",
-                        stops: 0
-                      }}
-                    />
-                    <Separator />
-                    <FlightCard
-                      flight={{
-                        id: "flight2",
-                        departure: "London",
-                        destination: currentLocation,
-                        departureTime: "10:15",
-                        arrivalTime: "12:30",
-                        departureDate: "2025-04-15",
-                        price: { amount: 320, currency: "USD" },
-                        airline: "British Airways",
-                        flightNumber: "BA456",
-                        duration: "2h 15m",
-                        stops: 0
-                      }}
-                    />
-                    <Separator />
-                    <FlightCard
-                      flight={{
-                        id: "flight3",
-                        departure: "Tokyo",
-                        destination: currentLocation,
-                        departureTime: "23:45",
-                        arrivalTime: "13:25",
-                        departureDate: "2025-04-14",
-                        price: { amount: 890, currency: "USD" },
-                        airline: "Japan Airlines",
-                        flightNumber: "JL789",
-                        duration: "13h 40m",
-                        stops: 1,
-                        layovers: [
-                          { airport: "Singapore", duration: "2h 30m" }
-                        ]
-                      }}
-                    />
+                    {flightsError && (
+                      <Alert variant="destructive" className="mb-4">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          {flightsError}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    <div className="text-center py-6 text-muted-foreground">
+                      <i className="fas fa-plane text-4xl mb-2 opacity-20"></i>
+                      <p>No flight information available yet.</p>
+                      <p className="text-sm">Ask about flights in the chat!</p>
+                    </div>
                   </>
                 ) : (
                   <div className="text-center py-6 text-muted-foreground">
                     <i className="fas fa-plane text-4xl mb-2 opacity-20"></i>
-                    <p>No flight information available yet.</p>
-                    <p className="text-sm">Ask about flights in the chat!</p>
+                    <p>Choose a destination first</p>
+                    <p className="text-sm">Tell us where you want to go in the chat!</p>
                   </div>
                 )}
               </CardContent>
@@ -225,9 +357,9 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                           id: restaurant.id,
                           name: restaurant.name,
                           cuisine: "Local Cuisine",
-                          address: "Central District",
-                          price: "$$",
-                          rating: 4.2,
+                          address: currentLocation,
+                          price: ["$", "$$", "$$$"][index % 3],
+                          rating: 4.0 + (index * 0.2 % 0.9),
                           openingHours: "11:00 AM - 10:00 PM"
                         }}
                       />
@@ -264,7 +396,7 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                           type: attraction.type === 'attraction' ? 'Cultural Tour' : 'Landmark Visit',
                           price: index % 3 === 0 ? 'Free' : '$25',
                           duration: "2 hours",
-                          location: "City Center",
+                          location: currentLocation,
                           rating: 4.5,
                           availableDates: ["2025-04-15", "2025-04-16", "2025-04-17"]
                         }}

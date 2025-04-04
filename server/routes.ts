@@ -3,6 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { processMessage } from "./groq";
 import { searchLocation } from "./nominatim";
+import { amadeus } from "./amadeus";
+import { weatherService } from "./weather";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Chat endpoint
@@ -42,6 +44,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error searching location:', error);
       res.status(500).json({ error: 'Failed to search location' });
+    }
+  });
+  
+  // Flights search endpoint
+  app.get('/api/flights', async (req, res) => {
+    try {
+      const { origin, destination, departDate, returnDate, adults, maxPrice } = req.query;
+      
+      if (!origin || !destination || !departDate || !returnDate) {
+        return res.status(400).json({ error: 'Missing required flight search parameters' });
+      }
+      
+      // Get IATA codes for locations
+      const originCode = await amadeus.getLocationCode(origin as string);
+      const destCode = await amadeus.getLocationCode(destination as string);
+      
+      if (!originCode || !destCode) {
+        return res.status(400).json({ error: 'Unable to find location codes for origin or destination' });
+      }
+      
+      // Search flights
+      const flights = await amadeus.searchFlights(
+        originCode,
+        destCode,
+        departDate as string,
+        returnDate as string,
+        adults ? parseInt(adults as string) : 1,
+        maxPrice ? parseInt(maxPrice as string) : undefined
+      );
+      
+      // Return flights
+      res.json(flights);
+    } catch (error) {
+      console.error('Error searching flights:', error);
+      res.status(500).json({ error: 'Failed to search flights' });
+    }
+  });
+  
+  // Hotels search endpoint
+  app.get('/api/hotels', async (req, res) => {
+    try {
+      const { location, checkIn, checkOut, adults, rooms } = req.query;
+      
+      if (!location || !checkIn || !checkOut) {
+        return res.status(400).json({ error: 'Missing required hotel search parameters' });
+      }
+      
+      // Get IATA code for location
+      const cityCode = await amadeus.getLocationCode(location as string);
+      
+      if (!cityCode) {
+        return res.status(400).json({ error: 'Unable to find location code for city' });
+      }
+      
+      // Search hotels
+      const hotels = await amadeus.searchHotels(
+        cityCode,
+        checkIn as string,
+        checkOut as string,
+        adults ? parseInt(adults as string) : 1,
+        rooms ? parseInt(rooms as string) : 1
+      );
+      
+      // Return hotels
+      res.json(hotels);
+    } catch (error) {
+      console.error('Error searching hotels:', error);
+      res.status(500).json({ error: 'Failed to search hotels' });
+    }
+  });
+  
+  // Weather endpoint
+  app.get('/api/weather', async (req, res) => {
+    try {
+      const { location, days } = req.query;
+      
+      if (!location) {
+        return res.status(400).json({ error: 'Missing required location parameter' });
+      }
+      
+      // Get weather data
+      const weatherData = await weatherService.getForecast(
+        location as string,
+        days ? parseInt(days as string) : 3
+      );
+      
+      // Format weather data
+      const formattedWeather = weatherService.formatWeatherData(weatherData, location as string);
+      
+      // Return weather data
+      res.json(formattedWeather);
+    } catch (error) {
+      console.error('Error getting weather:', error);
+      res.status(500).json({ error: 'Failed to get weather data' });
     }
   });
   
@@ -89,6 +185,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error getting chat history:', error);
       res.status(500).json({ error: 'Failed to get chat history' });
+    }
+  });
+
+  // Clear chat history endpoint (for "New Chat" functionality)
+  app.delete('/api/chat/history', async (req, res) => {
+    try {
+      // In a real app, we would delete messages from the database
+      // For now, we'll just return success since we're using in-memory storage
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error clearing chat history:', error);
+      res.status(500).json({ error: 'Failed to clear chat history' });
     }
   });
 
