@@ -420,492 +420,197 @@ async function processLocations(matches: RegExpMatchArray, result: any): Promise
  * Extract itinerary information from the response
  */
 function extractItinerary(response: string, userMessage: string): any {
-  // Try to determine destination from the response first
-  const responseDestinationMatches = response.match(/(?:trip|visit|travel|itinerary|plan)(?:\s+(?:to|for|in|at))\s+([A-Za-z\s,]+?)(?:\.|,|\s+with|\s+for)/i);
+  const days: {
+    day: number;
+    title: string;
+    activities: {time: string; description: string}[];
+  }[] = [];
   
-  // Or try to determine destination from user message
-  const userDestinationMatches = userMessage.match(/(?:trip|visit|travel|itinerary|plan)(?:\s+(?:to|for|in|at))\s+([A-Za-z\s]+)/i);
+  // Try to extract destination from user message or response
+  const destinationMatches = 
+    userMessage.match(/(?:trip|visit|travel|itinerary|plan)(?:\s+(?:to|for|in|at))\s+([A-Za-z\s,]+)(?:\s+for|\s+from|\s+on|\s+with|$)/i) ||
+    response.match(/(?:trip|visit|travel|itinerary|plan)(?:\s+(?:to|for|in|at))\s+([A-Za-z\s,]+)(?:\s+for|\s+from|\s+on|\s+with|\.)/i) ||
+    userMessage.match(/(?:in|to|for|at|visiting|explore)\s+([A-Z][a-zA-Z\s,]+)(?:\s+for|\s+from|\s+on|\s+with|$)/i) || 
+    response.match(/(?:in|to|for|at|visiting|explore)\s+([A-Z][a-zA-Z\s,]+)(?:\s+for|\s+from|\s+on|\s+with|\.)/i);
+    
+  const destination = destinationMatches ? destinationMatches[1].trim() : 'Your Destination';
+  console.log(`Extracted destination: ${destination}`);
   
-  const destination = responseDestinationMatches ? responseDestinationMatches[1].trim() : 
-                      userDestinationMatches ? userDestinationMatches[1].trim() : 'Your Destination';
+  // Try to determine number of days
+  const daysMatches = 
+    response.match(/(\d+)(?:-|\s*)?day(?:\s+trip|\s+itinerary|\s+visit)?/i) ||
+    userMessage.match(/(\d+)\s*(?:day|days)/i);
+    
+  const numberOfDays = daysMatches ? parseInt(daysMatches[1]) : 3;
+  console.log(`Extracted number of days: ${numberOfDays}`);
   
-  // Try to determine days from response
-  const responseDaysMatches = response.match(/(\d+)(?:-|\s*)?day(?:\s+trip|\s+itinerary|\s+visit)?/i);
+  // Try multiple approaches to extract day information
   
-  // Or try to determine days from user message
-  const userDaysMatches = userMessage.match(/(\d+)\s*(?:day|days)/i);
-  
-  const numberOfDays = responseDaysMatches ? parseInt(responseDaysMatches[1]) : 
-                      userDaysMatches ? parseInt(userDaysMatches[1]) : 3;
-  
-  // First, try to parse itinerary days from the model's response using pattern matching
-  const days = [];
-  
-  // Try to extract Day sections using regex
-  const dayRegex = /Day\s+(\d+)[^\n]*?\n((?:.+\n)+?)(?:Day\s+\d|$)/gi;
-  let dayMatch;
-  let dayMatches: RegExpExecArray[] = [];
-  
-  // Manually extract all matches
-  while ((dayMatch = dayRegex.exec(response)) !== null) {
-    dayMatches.push(dayMatch);
-  }
-  
-  // If we found structured day information
-  if (dayMatches.length > 0) {
-    for (const match of dayMatches) {
-      const dayNumber = parseInt(match[1]);
-      const dayContent = match[2].trim();
+  // Approach 1: Use regex to find day sections with activities
+  try {
+    const dayRegex = new RegExp("(?:^|\\n)\\s*(?:Day|DAY|day)\\s*(\\d+)(?:[-:]|\\s+)(.*?)(?=(?:\\n\\s*(?:Day|DAY|day)\\s*\\d+)|$)", "gs");
+    let match;
+    let content = response;
+    
+    // Replace newlines with a special character so we can use the 's' flag in our regex
+    content = content.replace(/\n/g, "§");
+    
+    // Use a more manual approach since 's' flag isn't available
+    const matches = content.match(new RegExp("(?:^|§)\\s*(?:Day|DAY|day)\\s*(\\d+)(?:[-:]|\\s+)(.*?)(?=(?:§\\s*(?:Day|DAY|day)\\s*\\d+)|$)", "g"));
+    
+    if (matches) {
+      console.log(`Found ${matches.length} day sections using regex approach`);
       
-      // Now extract activities from each day
-      const activities = [];
-      
-      // Try to find time-based activities (e.g., "Morning: Visit...")
-      const timeActivityRegex = /(Morning|Afternoon|Evening|Night):\s*([^\n]+)/gi;
-      let timeActivityMatch;
-      let timeActivityMatches: RegExpExecArray[] = [];
-      
-      // Manually extract all matches
-      while ((timeActivityMatch = timeActivityRegex.exec(dayContent)) !== null) {
-        timeActivityMatches.push(timeActivityMatch);
-      }
-      
-      if (timeActivityMatches.length > 0) {
-        for (const activityMatch of timeActivityMatches) {
-          const timeOfDay = activityMatch[1].trim();
-          const activityDesc = activityMatch[2].trim();
+      matches.forEach(section => {
+        const dayMatch = section.match(/(?:Day|DAY|day)\s*(\d+)/);
+        if (dayMatch) {
+          const dayNumber = parseInt(dayMatch[1]);
+          const dayContent = section.replace(/(?:^|§)\s*(?:Day|DAY|day)\s*\d+(?:[-:]|\s+)/, '').replace(/§/g, '\n');
           
-          // Convert time of day to approximate hours
-          let time;
-          switch (timeOfDay.toLowerCase()) {
-            case 'morning': time = '9:00 AM'; break;
-            case 'afternoon': time = '2:00 PM'; break;
-            case 'evening': time = '7:00 PM'; break;
-            case 'night': time = '9:00 PM'; break;
-            default: time = '12:00 PM';
-          }
+          const activities: {time: string; description: string}[] = [];
           
-          activities.push({ time, description: activityDesc });
-        }
-      } else {
-        // Try to find bullet point activities
-        const bulletActivityRegex = /[•*-]\s*([^\n]+)/g;
-        let bulletActivityMatch;
-        let bulletActivityMatches: RegExpExecArray[] = [];
-        
-        // Manually extract all matches
-        while ((bulletActivityMatch = bulletActivityRegex.exec(dayContent)) !== null) {
-          bulletActivityMatches.push(bulletActivityMatch);
-        }
-        
-        if (bulletActivityMatches.length > 0) {
-          // Distribute bullet points throughout the day
-          const timeSlots = ['8:00 AM', '10:30 AM', '1:00 PM', '3:30 PM', '6:00 PM', '8:30 PM'];
+          // Try multiple approaches to extract activities
           
-          bulletActivityMatches.forEach((activityMatch, index) => {
-            const timeIndex = index % timeSlots.length;
-            activities.push({ 
-              time: timeSlots[timeIndex], 
-              description: activityMatch[1].trim() 
+          // First try: Look for time patterns like "9:00 AM - Visit the museum"
+          const timeActRegex = /(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)\s*[-:]\s*([^§]+)/g;
+          let timeMatch;
+          
+          while ((timeMatch = timeActRegex.exec(dayContent.replace(/\n/g, '§'))) !== null) {
+            activities.push({
+              time: timeMatch[1].trim(),
+              description: timeMatch[2].trim()
             });
-          });
-        } else {
-          // If no structured activities found, try to parse sentences as activities
-          const sentences = dayContent.split(/[.!?]\s+/);
-          sentences.forEach((sentence: string, index: number) => {
-            if (sentence.trim().length > 10) { // Minimum sentence length
-              const hour = 8 + (index * 2) % 14; // Distribute between 8 AM and 10 PM
-              const timeStr = hour <= 12 ? `${hour}:00 AM` : `${hour-12}:00 PM`;
-              activities.push({ time: timeStr, description: sentence.trim() });
+          }
+          
+          // Second try: Look for morning/afternoon/evening patterns
+          if (activities.length === 0) {
+            const periodRegex = /(Morning|Afternoon|Evening|Night):\s*([^§]+)/gi;
+            let periodMatch;
+            
+            while ((periodMatch = periodRegex.exec(dayContent.replace(/\n/g, '§'))) !== null) {
+              const period = periodMatch[1].toLowerCase();
+              let time = '12:00 PM';
+              
+              if (period === 'morning') time = '9:00 AM';
+              else if (period === 'afternoon') time = '2:00 PM';
+              else if (period === 'evening') time = '7:00 PM';
+              else if (period === 'night') time = '9:00 PM';
+              
+              activities.push({
+                time,
+                description: periodMatch[2].trim()
+              });
             }
-          });
-        }
-      }
-      
-      // Get day title - use first activity or generic title
-      let dayTitle = `Day ${dayNumber} in ${destination}`;
-      if (activities.length > 0) {
-        // Try to create a title based on the theme of activities
-        if (activities[0].description.toLowerCase().includes('temple') || 
-            activities[0].description.toLowerCase().includes('shrine')) {
-          dayTitle = 'Cultural Exploration';
-        } else if (activities[0].description.toLowerCase().includes('market') || 
-                  activities[0].description.toLowerCase().includes('shop')) {
-          dayTitle = 'Shopping & Local Markets';
-        } else if (activities[0].description.toLowerCase().includes('museum') || 
-                  activities[0].description.toLowerCase().includes('art')) {
-          dayTitle = 'Arts & Museums';
-        } else if (activities[0].description.toLowerCase().includes('nature') || 
-                  activities[0].description.toLowerCase().includes('park') ||
-                  activities[0].description.toLowerCase().includes('garden')) {
-          dayTitle = 'Nature & Outdoors';
-        } else {
-          // Just use the first part of the first activity
-          const firstActivity = activities[0].description.split(',')[0];
-          if (firstActivity.length > 30) {
-            dayTitle = firstActivity.substring(0, 30) + '...';
-          } else {
-            dayTitle = firstActivity;
+          }
+          
+          // Third try: Look for bullet points
+          if (activities.length === 0) {
+            const bulletRegex = /[•*-]\s*([^§]+)/g;
+            let bulletMatch;
+            const timeSlots = ['8:00 AM', '10:30 AM', '1:00 PM', '3:30 PM', '6:00 PM', '8:30 PM'];
+            let bulletIndex = 0;
+            
+            while ((bulletMatch = bulletRegex.exec(dayContent.replace(/\n/g, '§'))) !== null) {
+              activities.push({
+                time: timeSlots[bulletIndex % timeSlots.length],
+                description: bulletMatch[1].trim()
+              });
+              bulletIndex++;
+            }
+          }
+          
+          // Fourth try: Just split by lines and try to make sense of each line
+          if (activities.length === 0) {
+            dayContent.split('\n').forEach((line, idx) => {
+              const trimmed = line.trim();
+              if (trimmed.length > 10) {
+                const hour = 8 + (idx * 2) % 14;
+                const timeStr = hour < 12 ? `${hour}:00 AM` : `${hour === 12 ? 12 : hour - 12}:00 PM`;
+                
+                activities.push({
+                  time: timeStr,
+                  description: trimmed
+                });
+              }
+            });
+          }
+          
+          // Generate a title for the day
+          let title = `Day ${dayNumber}`;
+          
+          // Try to extract the title from the first line
+          const lines = dayContent.split('\n');
+          if (lines.length > 0 && lines[0].length > 0 && !lines[0].match(/^\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?/)) {
+            // The first line isn't a time, so it might be a title
+            const possibleTitle = lines[0].split(/[-:.]/, 1)[0].trim();
+            if (possibleTitle.length > 0 && possibleTitle.length < 50) {
+              title = possibleTitle;
+            }
+          } else if (activities.length > 0) {
+            // Use the first activity to generate a theme-based title
+            const firstAct = activities[0].description.toLowerCase();
+            
+            if (firstAct.includes('temple') || firstAct.includes('shrine') || firstAct.includes('palace'))
+              title = 'Cultural Exploration';
+            else if (firstAct.includes('market') || firstAct.includes('shop') || firstAct.includes('store'))
+              title = 'Shopping & Local Markets';
+            else if (firstAct.includes('museum') || firstAct.includes('art') || firstAct.includes('gallery'))
+              title = 'Arts & Museums';
+            else if (firstAct.includes('park') || firstAct.includes('garden') || firstAct.includes('nature'))
+              title = 'Nature & Outdoors';
+            else if (firstAct.includes('food') || firstAct.includes('restaurant') || firstAct.includes('cafe'))
+              title = 'Food & Culinary Experiences';
+            else {
+              // Use the first activity description
+              const shortDesc = activities[0].description.split(',')[0];
+              title = shortDesc.length > 30 ? shortDesc.substring(0, 30) + '...' : shortDesc;
+            }
+          }
+          
+          if (activities.length > 0) {
+            days.push({
+              day: dayNumber,
+              title,
+              activities
+            });
+            console.log(`Added day ${dayNumber} with ${activities.length} activities`);
           }
         }
-      }
-      
-      // Only add days with activities
-      if (activities.length > 0) {
-        days.push({
-          day: dayNumber,
-          title: dayTitle,
-          activities: activities
-        });
-      }
+      });
     }
+  } catch (error) {
+    console.error("Error in regex approach:", error);
   }
   
-  // Generate itinerary based on destination and number of days
-  if (destination.toLowerCase().includes('tokyo')) {
-    // Tokyo-specific itinerary
-    days.push({
-      day: 1,
-      title: 'Tokyo Highlights',
-      activities: [
-        { time: '9:00 AM', description: 'Tokyo Metropolitan Government Building for panoramic city views' },
-        { time: '11:30 AM', description: 'Meiji Shrine and peaceful forest walk' },
-        { time: '1:00 PM', description: 'Lunch at Harajuku\'s trendy cafes' },
-        { time: '3:00 PM', description: 'Shibuya Crossing and shopping district exploration' },
-        { time: '6:30 PM', description: 'Dinner at an izakaya in Shinjuku' },
-        { time: '8:00 PM', description: 'Nighttime views from Tokyo Tower' }
-      ]
-    });
-    
-    if (numberOfDays >= 2) {
-      days.push({
-        day: 2,
-        title: 'Traditional Tokyo',
-        activities: [
-          { time: '8:30 AM', description: 'Early morning visit to Tsukiji Outer Market for sushi breakfast' },
-          { time: '10:30 AM', description: 'Asakusa and Senso-ji Temple exploration' },
-          { time: '1:00 PM', description: 'Lunch at a traditional tempura restaurant' },
-          { time: '2:30 PM', description: 'Tokyo National Museum in Ueno Park' },
-          { time: '5:00 PM', description: 'Akihabara Electric Town for anime and electronics' },
-          { time: '7:30 PM', description: 'Dinner at a themed restaurant experience' }
-        ]
-      });
-    }
-    
-    if (numberOfDays >= 3) {
-      days.push({
-        day: 3,
-        title: 'Modern Tokyo',
-        activities: [
-          { time: '9:00 AM', description: 'Teamlab Borderless Digital Art Museum' },
-          { time: '12:00 PM', description: 'Lunch at Toyosu Fish Market' },
-          { time: '2:00 PM', description: 'Odaiba entertainment district and Tokyo Bay views' },
-          { time: '4:30 PM', description: 'Shopping in Ginza luxury district' },
-          { time: '7:00 PM', description: 'Dinner at a Michelin-starred restaurant' },
-          { time: '9:00 PM', description: 'Drinks in Roppongi entertainment district' }
-        ]
-      });
-    }
-    
-    if (numberOfDays >= 4) {
-      days.push({
-        day: 4,
-        title: 'Day Trip to Hakone',
-        activities: [
-          { time: '7:30 AM', description: 'Bullet train to Hakone' },
-          { time: '9:30 AM', description: 'Lake Ashi scenic cruise with Mt. Fuji views' },
-          { time: '12:00 PM', description: 'Traditional Japanese lunch in Hakone' },
-          { time: '2:00 PM', description: 'Hakone Open-Air Museum' },
-          { time: '4:00 PM', description: 'Relax in a traditional onsen hot spring' },
-          { time: '7:00 PM', description: 'Return to Tokyo for dinner' }
-        ]
-      });
-    }
-  } else if (destination.toLowerCase().includes('paris')) {
-    // Paris-specific itinerary
-    days.push({
-      day: 1,
-      title: 'Classic Paris',
-      activities: [
-        { time: '9:00 AM', description: 'Eiffel Tower visit (book tickets in advance)' },
-        { time: '11:30 AM', description: 'Seine River cruise' },
-        { time: '1:00 PM', description: 'Lunch at a classic Parisian café' },
-        { time: '3:00 PM', description: 'Louvre Museum (focus on key masterpieces)' },
-        { time: '6:30 PM', description: 'Stroll through the Tuileries Garden' },
-        { time: '8:00 PM', description: 'Dinner in Le Marais district' }
-      ]
-    });
-    
-    if (numberOfDays >= 2) {
-      days.push({
-        day: 2,
-        title: 'Historical Paris',
-        activities: [
-          { time: '8:30 AM', description: 'Notre-Dame Cathedral exterior and Île de la Cité' },
-          { time: '10:30 AM', description: 'Sainte-Chapelle stained glass masterpiece' },
-          { time: '12:00 PM', description: 'Lunch in the Latin Quarter' },
-          { time: '2:00 PM', description: 'Musée d\'Orsay for impressionist art' },
-          { time: '5:00 PM', description: 'Luxembourg Gardens relaxation' },
-          { time: '7:30 PM', description: 'Dinner at a traditional bistro in Saint-Germain' }
-        ]
-      });
-    }
-    
-    if (numberOfDays >= 3) {
-      days.push({
-        day: 3,
-        title: 'Artistic Paris',
-        activities: [
-          { time: '9:00 AM', description: 'Montmartre hill and Sacré-Cœur Basilica' },
-          { time: '11:00 AM', description: 'Place du Tertre artist square' },
-          { time: '1:00 PM', description: 'Lunch with a view of Paris' },
-          { time: '3:00 PM', description: 'Centre Pompidou modern art museum' },
-          { time: '5:30 PM', description: 'Shopping along the Champs-Élysées' },
-          { time: '8:00 PM', description: 'Dinner and cabaret show' }
-        ]
-      });
-    }
-    
-    if (numberOfDays >= 4) {
-      days.push({
-        day: 4,
-        title: 'Versailles Day Trip',
-        activities: [
-          { time: '8:00 AM', description: 'Train to Versailles Palace' },
-          { time: '9:30 AM', description: 'Tour of the opulent State Apartments and Hall of Mirrors' },
-          { time: '12:30 PM', description: 'Lunch at a restaurant in Versailles town' },
-          { time: '2:00 PM', description: 'Explore the magnificent palace gardens' },
-          { time: '4:00 PM', description: 'Visit the Grand and Petit Trianon' },
-          { time: '7:00 PM', description: 'Return to Paris for dinner' }
-        ]
-      });
-    }
-  } else if (destination.toLowerCase().includes('new york') || destination.toLowerCase().includes('nyc')) {
-    // New York-specific itinerary
-    days.push({
-      day: 1,
-      title: 'Iconic Manhattan',
-      activities: [
-        { time: '9:00 AM', description: 'Empire State Building observation deck' },
-        { time: '11:30 AM', description: 'Fifth Avenue and Grand Central Terminal' },
-        { time: '1:00 PM', description: 'Lunch at a New York deli' },
-        { time: '2:30 PM', description: 'Times Square and Broadway area' },
-        { time: '5:00 PM', description: 'Stroll through Central Park' },
-        { time: '7:30 PM', description: 'Dinner in Midtown Manhattan' }
-      ]
-    });
-    
-    if (numberOfDays >= 2) {
-      days.push({
-        day: 2,
-        title: 'Downtown & Financial District',
-        activities: [
-          { time: '8:30 AM', description: 'Ferry to Statue of Liberty and Ellis Island' },
-          { time: '12:00 PM', description: 'Lunch in the Financial District' },
-          { time: '1:30 PM', description: '9/11 Memorial and Museum' },
-          { time: '4:00 PM', description: 'One World Observatory views' },
-          { time: '5:30 PM', description: 'Walk across the Brooklyn Bridge' },
-          { time: '7:00 PM', description: 'Dinner in Dumbo with Manhattan skyline views' }
-        ]
-      });
-    }
-    
-    if (numberOfDays >= 3) {
-      days.push({
-        day: 3,
-        title: 'Museum Mile & Upper East Side',
-        activities: [
-          { time: '9:00 AM', description: 'Metropolitan Museum of Art' },
-          { time: '12:30 PM', description: 'Lunch at a Madison Avenue café' },
-          { time: '2:00 PM', description: 'Guggenheim Museum' },
-          { time: '4:00 PM', description: 'Shopping on Madison Avenue' },
-          { time: '6:00 PM', description: 'Walk through Central Park at sunset' },
-          { time: '8:00 PM', description: 'Dinner in the Upper West Side' }
-        ]
-      });
-    }
-    
-    if (numberOfDays >= 4) {
-      days.push({
-        day: 4,
-        title: 'Brooklyn Exploration',
-        activities: [
-          { time: '9:00 AM', description: 'Brooklyn Heights Promenade views' },
-          { time: '10:30 AM', description: 'Prospect Park and Grand Army Plaza' },
-          { time: '12:30 PM', description: 'Lunch at a trendy Williamsburg restaurant' },
-          { time: '2:30 PM', description: 'Brooklyn Museum and Botanic Garden' },
-          { time: '5:00 PM', description: 'Shopping and art galleries in Williamsburg' },
-          { time: '7:30 PM', description: 'Dinner at a Brooklyn farm-to-table restaurant' }
-        ]
-      });
-    }
-  } else if (destination.toLowerCase().includes('barcelona')) {
-    // Barcelona-specific itinerary
-    days.push({
-      day: 1,
-      title: 'Gaudí Masterpieces',
-      activities: [
-        { time: '9:00 AM', description: 'Sagrada Família (pre-book tickets)' },
-        { time: '12:00 PM', description: 'Lunch near Eixample district' },
-        { time: '2:00 PM', description: 'Casa Batlló and Casa Milà (La Pedrera)' },
-        { time: '5:00 PM', description: 'Stroll down Passeig de Gràcia' },
-        { time: '7:00 PM', description: 'Sunset drink at a rooftop bar' },
-        { time: '8:30 PM', description: 'Dinner and tapas in the Gothic Quarter' }
-      ]
-    });
-    
-    if (numberOfDays >= 2) {
-      days.push({
-        day: 2,
-        title: 'Historic Barcelona',
-        activities: [
-          { time: '9:00 AM', description: 'Gothic Quarter walking tour' },
-          { time: '11:00 AM', description: 'Barcelona Cathedral and Santa Maria del Mar' },
-          { time: '1:00 PM', description: 'Lunch at La Boqueria Market' },
-          { time: '3:00 PM', description: 'Picasso Museum' },
-          { time: '5:30 PM', description: 'El Born district exploration' },
-          { time: '8:00 PM', description: 'Dinner with flamenco show' }
-        ]
-      });
-    }
-    
-    if (numberOfDays >= 3) {
-      days.push({
-        day: 3,
-        title: 'Montjuïc Hill',
-        activities: [
-          { time: '9:00 AM', description: 'Park Güell (pre-book tickets)' },
-          { time: '12:00 PM', description: 'Lunch in Gràcia neighborhood' },
-          { time: '2:00 PM', description: 'Cable car to Montjuïc' },
-          { time: '3:00 PM', description: 'National Art Museum of Catalonia' },
-          { time: '5:30 PM', description: 'Magic Fountain (check show times)' },
-          { time: '8:00 PM', description: 'Seafood dinner at Barceloneta beach' }
-        ]
-      });
-    }
-    
-    if (numberOfDays >= 4) {
-      days.push({
-        day: 4,
-        title: 'Montserrat Day Trip',
-        activities: [
-          { time: '8:00 AM', description: 'Train to Montserrat mountain' },
-          { time: '10:00 AM', description: 'Visit the Santa Maria de Montserrat monastery' },
-          { time: '12:00 PM', description: 'Listen to the famous boys choir (if performing)' },
-          { time: '1:30 PM', description: 'Lunch with mountain views' },
-          { time: '3:00 PM', description: 'Hiking in the surrounding natural park' },
-          { time: '7:00 PM', description: 'Return to Barcelona for dinner' }
-        ]
-      });
-    }
-  } else {
-    // Generic itinerary for any other destination
-    days.push({
-      day: 1,
-      title: `${destination} Highlights`,
-      activities: [
-        { time: '9:00 AM', description: 'Visit the main historical landmark' },
-        { time: '11:30 AM', description: 'Guided walking tour of the city center' },
-        { time: '1:00 PM', description: 'Lunch featuring local cuisine' },
-        { time: '3:00 PM', description: 'Explore the premier museum or cultural site' },
-        { time: '5:30 PM', description: 'Shopping in the main commercial area' },
-        { time: '8:00 PM', description: 'Welcome dinner at a highly-rated restaurant' }
-      ]
-    });
-    
-    if (numberOfDays >= 2) {
-      days.push({
-        day: 2,
-        title: 'Cultural Immersion',
-        activities: [
-          { time: '8:30 AM', description: 'Local market visit' },
-          { time: '10:30 AM', description: 'Cultural or historical neighborhood exploration' },
-          { time: '1:00 PM', description: 'Lunch at a local favorite restaurant' },
-          { time: '2:30 PM', description: 'Visit to secondary attractions and photo spots' },
-          { time: '5:00 PM', description: 'Relaxation time at a park or scenic area' },
-          { time: '7:30 PM', description: 'Evening entertainment and dinner' }
-        ]
-      });
-    }
-    
-    if (numberOfDays >= 3) {
-      days.push({
-        day: 3,
-        title: 'Local Experiences',
-        activities: [
-          { time: '9:00 AM', description: 'Specialty museum or unique attraction' },
-          { time: '11:30 AM', description: 'Cooking class or cultural workshop' },
-          { time: '1:30 PM', description: 'Lunch featuring dishes you learned to prepare' },
-          { time: '3:00 PM', description: 'Off-the-beaten-path neighborhood exploration' },
-          { time: '5:30 PM', description: 'Sunset viewpoint visit' },
-          { time: '8:00 PM', description: 'Farewell dinner at a special venue' }
-        ]
-      });
-    }
-    
-    if (numberOfDays >= 4) {
-      days.push({
-        day: 4,
-        title: 'Day Trip Adventure',
-        activities: [
-          { time: '8:00 AM', description: 'Transportation to nearby natural or historical attraction' },
-          { time: '10:00 AM', description: 'Guided tour of the site' },
-          { time: '12:30 PM', description: 'Regional lunch experience' },
-          { time: '2:00 PM', description: 'Additional sightseeing or activities' },
-          { time: '4:30 PM', description: 'Local specialties shopping or tasting' },
-          { time: '7:00 PM', description: 'Return to main destination for dinner' }
-        ]
-      });
-    }
-  }
-  
-  // Only use predefined itineraries if we didn't successfully extract days from the response
-  if (days.length === 0) {
-    // Generate fallback itinerary based on destination and number of days
-    if (destination.toLowerCase().includes('tokyo')) {
-      // Tokyo-specific itinerary
-      days.push({
-        day: 1,
-        title: 'Tokyo Highlights',
-        activities: [
-          { time: '9:00 AM', description: 'Tokyo Metropolitan Government Building for panoramic city views' },
-          { time: '11:30 AM', description: 'Meiji Shrine and peaceful forest walk' },
-          { time: '1:00 PM', description: 'Lunch at Harajuku\'s trendy cafes' },
-          { time: '3:00 PM', description: 'Shibuya Crossing and shopping district exploration' },
-          { time: '6:30 PM', description: 'Dinner at an izakaya in Shinjuku' },
-          { time: '8:00 PM', description: 'Nighttime views from Tokyo Tower' }
-        ]
-      });
-      
-      // Add more days as needed
-      if (numberOfDays >= 2) {
-        days.push({
-          day: 2,
-          title: 'Traditional Tokyo',
-          activities: [
-            { time: '8:30 AM', description: 'Early morning visit to Tsukiji Outer Market for sushi breakfast' },
-            { time: '10:30 AM', description: 'Asakusa and Senso-ji Temple exploration' },
-            { time: '1:00 PM', description: 'Lunch at a traditional tempura restaurant' },
-            { time: '2:30 PM', description: 'Tokyo National Museum in Ueno Park' },
-            { time: '5:00 PM', description: 'Akihabara Electric Town for anime and electronics' },
-            { time: '7:30 PM', description: 'Dinner at a themed restaurant experience' }
-          ]
-        });
-      }
-      
-      // Add more days for specific cities as in the old code...
-    }
-    // Add additional cities as needed (Paris, New York, etc.) from the original code
-  }
-  
-  // Sort days by day number to ensure correct order
+  // Sort days by day number
   days.sort((a, b) => a.day - b.day);
   
+  // If we didn't extract any days, create a default itinerary
+  if (days.length === 0) {
+    console.log("No days extracted, using default itinerary template");
+    
+    for (let i = 1; i <= numberOfDays; i++) {
+      days.push({
+        day: i,
+        title: `Day ${i}${i === 1 ? ': Arrival & Orientation' : i === numberOfDays ? ': Farewell Day' : ''}`,
+        activities: [
+          { time: '9:00 AM', description: 'Start your day with local breakfast' },
+          { time: '10:30 AM', description: i === 1 ? 'Visit main landmarks and attractions' : 'Explore local neighborhoods' },
+          { time: '1:00 PM', description: 'Lunch at a popular local restaurant' },
+          { time: '3:00 PM', description: i === 1 ? 'Cultural activity or museum visit' : 'Shopping or relaxation time' },
+          { time: '6:00 PM', description: 'Free time to refresh and rest' },
+          { time: '8:00 PM', description: i === numberOfDays ? 'Farewell dinner at a special restaurant' : 'Dinner and evening entertainment' }
+        ]
+      });
+    }
+  }
+  
+  // Generate the final itinerary object
   return {
     id: uuidv4(),
-    title: `${destination} Itinerary (${numberOfDays} Days)`,
+    title: `${days.length}-Day Itinerary for ${destination}`,
     destination,
-    days,
+    days
   };
 }
 
