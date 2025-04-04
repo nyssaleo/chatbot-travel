@@ -23,6 +23,7 @@ interface InfoColumnProps {
   itinerary: Itinerary | null;
   localFood?: LocalFood[];
   localAttractions?: LocalAttraction[];
+  onUpdateMapMarkers?: (markers: MapMarker[]) => void;
 }
 
 const InfoColumn: React.FC<InfoColumnProps> = ({
@@ -31,20 +32,28 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
   markers,
   itinerary,
   localFood = [],
-  localAttractions = []
+  localAttractions = [],
+  onUpdateMapMarkers
 }) => {
   const [activeTab, setActiveTab] = useState("overview");
+  const [activeDay, setActiveDay] = useState(1);
   const [flights, setFlights] = useState<any[]>([]);
   const [hotels, setHotels] = useState<any[]>([]);
   const [flightsLoading, setFlightsLoading] = useState(false);
   const [hotelsLoading, setHotelsLoading] = useState(false);
   const [flightsError, setFlightsError] = useState<string | null>(null);
   const [hotelsError, setHotelsError] = useState<string | null>(null);
+  const [dayMarkers, setDayMarkers] = useState<MapMarker[]>([]);
   
   // Filter markers by type
   const restaurantMarkers = markers.filter(marker => marker.type === 'food');
   const attractionMarkers = markers.filter(marker => marker.type === 'attraction' || marker.type === 'landmark');
   const hotelMarkers = markers.filter(marker => marker.type === 'hotel');
+  
+  // Function to handle day change from itinerary
+  const handleDayChange = (day: number) => {
+    setActiveDay(day);
+  };
   
   // Load flight data when the active tab changes to flights
   useEffect(() => {
@@ -145,6 +154,74 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
     setHotelsLoading(false);
   };
   
+  // Listen for map location requests from ItineraryCard
+  useEffect(() => {
+    const handleShowOnMap = (event: CustomEvent) => {
+      const { location, name, type, day } = event.detail;
+      
+      // Create a new marker for this location
+      const newMarker: MapMarker = {
+        id: `day-${day}-${name.replace(/\s+/g, '-').toLowerCase()}`,
+        latitude: 0, // Will be filled in later by geocoding
+        longitude: 0, // Will be filled in later by geocoding
+        name: name,
+        type: type
+      };
+      
+      // Update day-specific markers
+      setDayMarkers(prev => [...prev.filter(m => m.id !== newMarker.id), newMarker]);
+      
+      // Call parent component to update map view
+      if (onUpdateMapMarkers) {
+        onUpdateMapMarkers([...markers, newMarker]);
+      }
+    };
+    
+    window.addEventListener('showOnMap', handleShowOnMap as EventListener);
+    return () => {
+      window.removeEventListener('showOnMap', handleShowOnMap as EventListener);
+    };
+  }, [markers, onUpdateMapMarkers]);
+  
+  // Filter local recommendations based on active day
+  // This is where we implement day-specific food and attraction recommendations
+  const getDaySpecificData = (data: any[], day: number, type: 'food' | 'attraction') => {
+    // If we have fewer than 5 items, duplicate to ensure at least 5 items per day
+    if (data.length < 5) {
+      const duplicated = [...data];
+      while (duplicated.length < 5) {
+        duplicated.push(...data);
+      }
+      data = duplicated.slice(0, 5);
+    }
+    
+    // Distribute items across days
+    const itemsPerDay = Math.ceil(data.length / (itinerary?.days.length || 1));
+    const startIdx = (day - 1) * itemsPerDay;
+    const endIdx = Math.min(startIdx + itemsPerDay + 2, data.length); // Add 2 more items for overlap
+    
+    // Return day-specific items with a modified id to mark the day
+    return data.slice(startIdx, endIdx).map(item => {
+      let locationText = item.location;
+      
+      // For food items, use area specific to the day's activities if possible
+      if (type === 'food' && itinerary) {
+        const dayTitle = itinerary.days.find(d => d.day === day)?.title;
+        if (dayTitle) {
+          locationText = `Near ${dayTitle}`;
+        } else {
+          locationText = `Near your daily activities`;
+        }
+      }
+      
+      return {
+        ...item,
+        id: `day-${day}-${item.id}`,
+        location: locationText
+      };
+    });
+  };
+  
   return (
     <div className="h-full flex flex-col glass-column overflow-hidden">
       <div className="p-4 border-b flex-shrink-0">
@@ -191,7 +268,7 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ItineraryCard itinerary={itinerary} />
+                  <ItineraryCard itinerary={itinerary} onDayChange={handleDayChange} />
                 </CardContent>
               </Card>
             )}
@@ -353,8 +430,22 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {itinerary ? (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-medium">
+                        Recommendations for Day {activeDay}
+                      </h3>
+                      <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                        <i className="fas fa-map-marker-alt text-primary"></i>
+                        <span>{itinerary.days.find(d => d.day === activeDay)?.title || currentLocation}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+                
                 {localFood.length > 0 ? (
-                  localFood.map((food, index) => (
+                  getDaySpecificData(localFood, activeDay, 'food').map((food, index) => (
                     <div key={food.id}>
                       <RestaurantCard
                         restaurant={{
@@ -409,8 +500,22 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {itinerary ? (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-medium">
+                        Activities for Day {activeDay}
+                      </h3>
+                      <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                        <i className="fas fa-map-marker-alt text-primary"></i>
+                        <span>{itinerary.days.find(d => d.day === activeDay)?.title || currentLocation}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+                
                 {localAttractions.length > 0 ? (
-                  localAttractions.map((attraction, index) => (
+                  getDaySpecificData(localAttractions, activeDay, 'attraction').map((attraction, index) => (
                     <div key={attraction.id}>
                       <ActivityCard
                         activity={{
@@ -425,7 +530,7 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                           imageUrl: attraction.imageUrl
                         }}
                       />
-                      {index < localAttractions.length - 1 && <Separator className="my-3" />}
+                      {index < getDaySpecificData(localAttractions, activeDay, 'attraction').length - 1 && <Separator className="my-3" />}
                     </div>
                   ))
                 ) : attractionMarkers.length > 0 ? (
