@@ -1,85 +1,97 @@
 import React from 'react';
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Clock, Map, CalendarDays, Star, DollarSign } from 'lucide-react';
 
 interface ActivityCardProps {
-  name: string;
-  type: string;
-  price: string;
-  duration: string;
+  activity: {
+    id: string;
+    name: string;
+    type: string;
+    description?: string;
+    price: string;
+    duration: string;
+    location: string;
+    rating?: number;
+    availableDates?: string[];
+    imageUrl?: string;
+  };
+  className?: string;
 }
 
-const ActivityCard: React.FC<ActivityCardProps> = ({
-  name,
-  type,
-  price,
-  duration
-}) => {
-  const priceDisplay = price === 'Free' ? (
-    <Badge variant="outline" className="bg-green-500/10 text-green-400">Free</Badge>
-  ) : (
-    <Badge className="bg-primary/10 text-primary">{price}</Badge>
-  );
-  
-  // Function to generate the availability info
-  const getAvailability = () => {
-    const options = [
-      "Available daily",
-      "Available on weekdays",
-      "Available on weekends",
-      "Limited availability",
-      "Book 2 days in advance"
-    ];
-    
-    return options[Math.floor(Math.random() * options.length)];
-  };
-  
+export function ActivityCard({ activity, className }: ActivityCardProps) {
   return (
-    <div className="flex flex-col space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center mr-2">
-            <i className="fas fa-map-marked-alt text-primary"></i>
+    <Card className={`${className} backdrop-blur-md bg-white/30 dark:bg-gray-900/30 border-none shadow-md overflow-hidden w-full hover:shadow-lg transition-all`}>
+      <div className="flex flex-col md:flex-row">
+        {activity.imageUrl && (
+          <div className="md:w-1/3 h-36 md:h-auto relative">
+            <div 
+              className="absolute inset-0 bg-cover bg-center" 
+              style={{ backgroundImage: `url(${activity.imageUrl})` }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-tr from-black/40 to-transparent" />
           </div>
-          <div>
-            <h4 className="font-medium">{name}</h4>
-            <p className="text-xs text-muted-foreground">{type}</p>
+        )}
+        
+        <CardContent className={`p-4 flex-1 ${!activity.imageUrl ? 'w-full' : 'md:w-2/3'}`}>
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="font-bold text-lg">{activity.name}</h3>
+              <div className="flex items-center text-sm text-muted-foreground mb-2">
+                <Map className="h-3.5 w-3.5 mr-1" />
+                <span>{activity.location}</span>
+              </div>
+            </div>
+            
+            {activity.rating && (
+              <Badge variant="outline" className="bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-700">
+                {Array(Math.floor(activity.rating)).fill(0).map((_, i) => (
+                  <Star key={i} className="h-3 w-3 fill-current" />
+                ))}
+                {activity.rating % 1 > 0 && (
+                  <Star className="h-3 w-3 fill-current opacity-50" />
+                )}
+              </Badge>
+            )}
           </div>
-        </div>
-        <div className="text-right">
-          {priceDisplay}
-          <p className="text-xs mt-1">per person</p>
-        </div>
-      </div>
-      
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Badge variant="outline" className="bg-blue-500/10 text-blue-400 text-xs">
-            <i className="fas fa-clock mr-1.5"></i> {duration}
-          </Badge>
           
-          <Badge variant="outline" className="bg-amber-500/10 text-amber-400 text-xs">
-            <i className="fas fa-language mr-1.5"></i> English
-          </Badge>
-        </div>
-        
-        <button className="glass-lighter text-sm px-3 py-1 rounded-lg hover:bg-primary/20 transition-colors">
-          Book
-        </button>
+          {activity.description && (
+            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{activity.description}</p>
+          )}
+          
+          <div className="flex flex-wrap gap-2 mb-3">
+            <Badge variant="secondary" className="text-xs flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" />
+              {activity.duration}
+            </Badge>
+            
+            <Badge variant="secondary" className="text-xs flex items-center gap-1 bg-orange-500/10 text-orange-600 dark:text-orange-400">
+              {activity.type}
+            </Badge>
+            
+            {activity.availableDates && activity.availableDates.length > 0 && (
+              <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                <CalendarDays className="h-3.5 w-3.5" />
+                {activity.availableDates[0]}
+              </Badge>
+            )}
+          </div>
+          
+          <div className="text-right mt-2">
+            <div className="text-md font-bold flex items-center justify-end">
+              {activity.price === 'Free' ? (
+                <span className="text-green-600 dark:text-green-400">Free</span>
+              ) : (
+                <>
+                  <DollarSign className="h-4 w-4" />
+                  {activity.price}
+                </>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">per person</div>
+          </div>
+        </CardContent>
       </div>
-      
-      <div className="flex items-center justify-between text-xs">
-        <div className="flex items-center">
-          <i className="fas fa-calendar-alt text-muted-foreground mr-1.5"></i>
-          <span className="text-muted-foreground">{getAvailability()}</span>
-        </div>
-        
-        <div className="flex items-center">
-          <i className="fas fa-users text-muted-foreground mr-1.5"></i>
-          <span className="text-muted-foreground">Small groups</span>
-        </div>
-      </div>
-    </div>
+    </Card>
   );
-};
-
-export default ActivityCard;
+}

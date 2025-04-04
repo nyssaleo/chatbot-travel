@@ -4,11 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Weather, Itinerary, MapMarker } from '@/lib/types';
-import WeatherCard from '@/components/TravelInfo/cards/WeatherCard';
-import FlightCard from '@/components/TravelInfo/cards/FlightCard';
-import HotelCard from '@/components/TravelInfo/cards/HotelCard';
-import RestaurantCard from '@/components/TravelInfo/cards/RestaurantCard';
-import ActivityCard from '@/components/TravelInfo/cards/ActivityCard';
+import { WeatherCard } from '@/components/TravelInfo/cards/WeatherCard';
+import { FlightCard } from '@/components/TravelInfo/cards/FlightCard';
+import { HotelCard } from '@/components/TravelInfo/cards/HotelCard';
+import { RestaurantCard } from '@/components/TravelInfo/cards/RestaurantCard';
+import { ActivityCard } from '@/components/TravelInfo/cards/ActivityCard';
 import ItineraryCard from '../Itinerary/ItineraryCard';
 import InfoCards from '../Map/InfoCards';
 
@@ -112,10 +112,14 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                   hotelMarkers.map((hotel, index) => (
                     <div key={hotel.id}>
                       <HotelCard
-                        name={hotel.name}
-                        price="$120"
-                        rating={4.5}
-                        neighborhood="Downtown"
+                        hotel={{
+                          id: hotel.id,
+                          name: hotel.name,
+                          address: "Downtown",
+                          price: { amount: 120, currency: "USD" },
+                          rating: 4.5,
+                          amenities: ["Wifi", "Breakfast", "Pool"]
+                        }}
                       />
                       {index < hotelMarkers.length - 1 && <Separator className="my-3" />}
                     </div>
@@ -143,30 +147,54 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                 {currentLocation ? (
                   <>
                     <FlightCard
-                      departure="New York"
-                      destination={currentLocation}
-                      price="$450"
-                      airline="Air France"
-                      duration="9h 25m"
-                      stops="0"
+                      flight={{
+                        id: "flight1",
+                        departure: "New York",
+                        destination: currentLocation,
+                        departureTime: "08:30",
+                        arrivalTime: "17:55",
+                        departureDate: "2025-04-15",
+                        price: { amount: 450, currency: "USD" },
+                        airline: "Air France",
+                        flightNumber: "AF123",
+                        duration: "9h 25m",
+                        stops: 0
+                      }}
                     />
                     <Separator />
                     <FlightCard
-                      departure="London"
-                      destination={currentLocation}
-                      price="$320"
-                      airline="British Airways"
-                      duration="2h 15m"
-                      stops="0"
+                      flight={{
+                        id: "flight2",
+                        departure: "London",
+                        destination: currentLocation,
+                        departureTime: "10:15",
+                        arrivalTime: "12:30",
+                        departureDate: "2025-04-15",
+                        price: { amount: 320, currency: "USD" },
+                        airline: "British Airways",
+                        flightNumber: "BA456",
+                        duration: "2h 15m",
+                        stops: 0
+                      }}
                     />
                     <Separator />
                     <FlightCard
-                      departure="Tokyo"
-                      destination={currentLocation}
-                      price="$890"
-                      airline="Japan Airlines"
-                      duration="13h 40m"
-                      stops="1"
+                      flight={{
+                        id: "flight3",
+                        departure: "Tokyo",
+                        destination: currentLocation,
+                        departureTime: "23:45",
+                        arrivalTime: "13:25",
+                        departureDate: "2025-04-14",
+                        price: { amount: 890, currency: "USD" },
+                        airline: "Japan Airlines",
+                        flightNumber: "JL789",
+                        duration: "13h 40m",
+                        stops: 1,
+                        layovers: [
+                          { airport: "Singapore", duration: "2h 30m" }
+                        ]
+                      }}
                     />
                   </>
                 ) : (
@@ -193,10 +221,15 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                   restaurantMarkers.map((restaurant, index) => (
                     <div key={restaurant.id}>
                       <RestaurantCard
-                        name={restaurant.name}
-                        cuisine="Local Cuisine"
-                        price="$$"
-                        rating={4.2}
+                        restaurant={{
+                          id: restaurant.id,
+                          name: restaurant.name,
+                          cuisine: "Local Cuisine",
+                          address: "Central District",
+                          price: "$$",
+                          rating: 4.2,
+                          openingHours: "11:00 AM - 10:00 PM"
+                        }}
                       />
                       {index < restaurantMarkers.length - 1 && <Separator className="my-3" />}
                     </div>
@@ -225,10 +258,16 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                   attractionMarkers.map((attraction, index) => (
                     <div key={attraction.id}>
                       <ActivityCard
-                        name={attraction.name}
-                        type={attraction.type === 'attraction' ? 'Cultural Tour' : 'Landmark Visit'}
-                        price={index % 3 === 0 ? 'Free' : '$25'}
-                        duration="2 hours"
+                        activity={{
+                          id: attraction.id,
+                          name: attraction.name,
+                          type: attraction.type === 'attraction' ? 'Cultural Tour' : 'Landmark Visit',
+                          price: index % 3 === 0 ? 'Free' : '$25',
+                          duration: "2 hours",
+                          location: "City Center",
+                          rating: 4.5,
+                          availableDates: ["2025-04-15", "2025-04-16", "2025-04-17"]
+                        }}
                       />
                       {index < attractionMarkers.length - 1 && <Separator className="my-3" />}
                     </div>

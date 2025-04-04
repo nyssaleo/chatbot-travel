@@ -1,83 +1,95 @@
 import React from 'react';
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Star, MapPin, Wifi, Coffee, Dumbbell } from 'lucide-react';
 
 interface HotelCardProps {
-  name: string;
-  price: string;
-  rating: number;
-  neighborhood: string;
+  hotel: {
+    id: string;
+    name: string;
+    description?: string;
+    address: string;
+    price: {
+      amount: number;
+      currency: string;
+    };
+    rating: number;
+    amenities: string[];
+    imageUrl?: string;
+  };
+  className?: string;
 }
 
-const HotelCard: React.FC<HotelCardProps> = ({
-  name,
-  price,
-  rating,
-  neighborhood
-}) => {
-  // Function to render the stars based on rating
-  const renderStars = () => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 >= 0.5;
-    
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(<i key={`full-${i}`} className="fas fa-star text-yellow-400"></i>);
+export function HotelCard({ hotel, className }: HotelCardProps) {
+  // Function to render amenity icon
+  const getAmenityIcon = (amenity: string) => {
+    const lowerAmenity = amenity.toLowerCase();
+    if (lowerAmenity.includes('wifi') || lowerAmenity.includes('internet')) {
+      return <Wifi className="h-3.5 w-3.5" />;
+    } else if (lowerAmenity.includes('breakfast') || lowerAmenity.includes('dining')) {
+      return <Coffee className="h-3.5 w-3.5" />;
+    } else if (lowerAmenity.includes('gym') || lowerAmenity.includes('fitness')) {
+      return <Dumbbell className="h-3.5 w-3.5" />;
     }
-    
-    if (hasHalfStar) {
-      stars.push(<i key="half" className="fas fa-star-half-alt text-yellow-400"></i>);
-    }
-    
-    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(<i key={`empty-${i}`} className="far fa-star text-muted-foreground"></i>);
-    }
-    
-    return stars;
+    return null;
   };
-  
-  return (
-    <div className="flex flex-col space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center mr-2">
-            <i className="fas fa-hotel text-primary"></i>
-          </div>
-          <div>
-            <h4 className="font-medium">{name}</h4>
-            <div className="flex items-center text-xs space-x-1 mt-0.5">
-              {renderStars()}
-            </div>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-lg font-bold text-primary">{price}</p>
-          <p className="text-xs">per night</p>
-        </div>
-      </div>
-      
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Badge variant="outline" className="bg-blue-500/10 text-blue-400 text-xs">
-            <i className="fas fa-map-marker-alt mr-1.5"></i> {neighborhood}
-          </Badge>
-          
-          <Badge variant="outline" className="bg-green-500/10 text-green-400 text-xs">
-            <i className="fas fa-wifi mr-1.5"></i> Free WiFi
-          </Badge>
-        </div>
-        
-        <button className="glass-lighter text-sm px-3 py-1 rounded-lg hover:bg-primary/20 transition-colors">
-          Book
-        </button>
-      </div>
-      
-      <div className="flex items-center text-xs text-muted-foreground">
-        <i className="fas fa-check-circle text-green-400 mr-1.5"></i>
-        Free cancellation available
-      </div>
-    </div>
-  );
-};
 
-export default HotelCard;
+  return (
+    <Card className={`${className} backdrop-blur-md bg-white/30 dark:bg-gray-900/30 border-none shadow-md overflow-hidden w-full hover:shadow-lg transition-all`}>
+      <div className="flex flex-col md:flex-row">
+        {hotel.imageUrl && (
+          <div className="md:w-1/3 h-36 md:h-auto relative">
+            <div 
+              className="absolute inset-0 bg-cover bg-center" 
+              style={{ backgroundImage: `url(${hotel.imageUrl})` }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-tr from-black/40 to-transparent" />
+          </div>
+        )}
+        
+        <CardContent className={`p-4 flex-1 ${!hotel.imageUrl ? 'w-full' : 'md:w-2/3'}`}>
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="font-bold text-lg">{hotel.name}</h3>
+              <div className="flex items-center text-sm text-muted-foreground mb-2">
+                <MapPin className="h-3.5 w-3.5 mr-1" />
+                <span>{hotel.address}</span>
+              </div>
+            </div>
+            <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700">
+              {Array(Math.floor(hotel.rating)).fill(0).map((_, i) => (
+                <Star key={i} className="h-3 w-3 fill-current" />
+              ))}
+              {hotel.rating % 1 > 0 && (
+                <Star className="h-3 w-3 fill-current opacity-50" />
+              )}
+            </Badge>
+          </div>
+          
+          {hotel.description && (
+            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{hotel.description}</p>
+          )}
+          
+          <div className="flex flex-wrap gap-2 mb-3">
+            {hotel.amenities.slice(0, 4).map((amenity, index) => (
+              <Badge key={index} variant="secondary" className="text-xs flex items-center gap-1">
+                {getAmenityIcon(amenity)}
+                {amenity}
+              </Badge>
+            ))}
+            {hotel.amenities.length > 4 && (
+              <Badge variant="secondary" className="text-xs">+{hotel.amenities.length - 4} more</Badge>
+            )}
+          </div>
+          
+          <div className="text-right mt-2">
+            <div className="text-lg font-bold">
+              {hotel.price.amount.toLocaleString()} {hotel.price.currency}
+            </div>
+            <div className="text-xs text-muted-foreground">per night</div>
+          </div>
+        </CardContent>
+      </div>
+    </Card>
+  );
+}

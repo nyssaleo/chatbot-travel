@@ -2,9 +2,27 @@ import { v4 as uuidv4 } from 'uuid';
 import { searchLocation } from './nominatim';
 import { storage } from './storage';
 import { Message, InsertMessage } from '@shared/schema';
+import { amadeus } from './amadeus';
+import { weatherService } from './weather';
 
 // Message history cache
 const conversationHistory = new Map<number, any[]>();
+
+// Travel planning session data
+interface TravelSession {
+  origin?: string;
+  destination?: string;
+  departureDate?: string;
+  returnDate?: string;
+  budget?: number;
+  currency?: string;
+  travelers?: number;
+  flightOptions?: any[];
+  hotelOptions?: any[];
+  weatherInfo?: any;
+}
+
+const travelSessions = new Map<number, TravelSession>();
 
 /**
  * Process a message using Groq API
@@ -16,6 +34,9 @@ export async function processMessage(message: string): Promise<any> {
     
     // Get conversation history
     let history = conversationHistory.get(userId) || [];
+    
+    // Get or create travel session
+    let travelSession = travelSessions.get(userId) || {};
     
     // Add user message to history
     history.push({
@@ -34,8 +55,25 @@ export async function processMessage(message: string): Promise<any> {
     // Process the message with Groq
     const groqResponse = await callGroqAPI(history);
     
+    // Process travel planning intent
+    const isPlanning = message.toLowerCase().includes('trip') || 
+                      message.toLowerCase().includes('travel') ||
+                      message.toLowerCase().includes('visit') ||
+                      message.toLowerCase().includes('flight') ||
+                      message.toLowerCase().includes('hotel');
+    
+    if (isPlanning) {
+      travelSession = {
+        ...travelSession,
+        ...extractTravelDetails(message, travelSession),
+      };
+      
+      // Save updated session
+      travelSessions.set(userId, travelSession);
+    }
+    
     // Extract relevant information
-    const { responseText, locations, itinerary, weather } = extractInformation(groqResponse, message);
+    const { responseText, locations, itinerary, weather } = await extractInformation(groqResponse, message, travelSession);
     
     // Add assistant response to history
     history.push({
@@ -71,6 +109,7 @@ export async function processMessage(message: string): Promise<any> {
       locations,
       itinerary,
       weather,
+      travelSession,
     };
   } catch (error) {
     console.error('Error processing message with Groq:', error);
@@ -84,19 +123,34 @@ export async function processMessage(message: string): Promise<any> {
 async function callGroqAPI(history: any[]): Promise<string> {
   try {
     // Check if Groq API key is available
-    const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || '';
+    const apiKey = process.env.GROQ_API_KEY || '';
     
     if (!apiKey) {
-      // For development, return a mock response if no API key is available
-      return generateMockResponse(history[history.length - 1].content);
+      throw new Error('GROQ API key is not available');
     }
     
     // Prepare the prompt
     const systemPrompt = `You are an AI travel assistant that helps users plan trips and provide travel information. 
-    Respond conversationally and helpfully. For locations mentioned, include their coordinates when relevant.
-    If the user asks about a specific place, provide interesting facts, recommended activities, and travel tips.
-    If the user wants an itinerary, create a structured day-by-day plan.
-    Always maintain context from the conversation history.`;
+    
+    YOUR CAPABILITIES:
+    - Flight booking assistance
+    - Hotel recommendations
+    - Weather forecasts
+    - Itinerary planning
+    - Local activity suggestions
+    - Budget planning
+    
+    INSTRUCTIONS:
+    - When the user wants to plan a trip, ask for missing details: origin, destination, dates, budget.
+    - If the user mentions a budget, convert it to USD if needed for consistency.
+    - For flight searches, determine the IATA codes for airports when possible.
+    - Create detailed day-by-day itineraries when requested.
+    - Respond conversationally and helpfully.
+    - Always maintain context from the conversation history.
+    
+    EXAMPLE PATTERN:
+    User: "I want to travel from Hyderabad to Vietnam for 4 days with a budget of ₹100,000."
+    Assistant: "I'd be happy to help you plan your 4-day trip from Hyderabad to Vietnam with a budget of ₹100,000 (approximately $1,200 USD). When would you like to travel? I'll need your departure and return dates to search for flights."`;
     
     // Call the Groq API
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -129,9 +183,70 @@ async function callGroqAPI(history: any[]): Promise<string> {
 }
 
 /**
+ * Extract travel details from user message
+ */
+function extractTravelDetails(message: string, currentSession: TravelSession = {}): Partial<TravelSession> {
+  const updates: Partial<TravelSession> = {};
+  
+  // Extract origin
+  const originMatch = message.match(/(?:from|in)\s+([A-Za-z\s]+)(?:\s+to|\s+and)/i);
+  if (originMatch && !currentSession.origin) {
+    updates.origin = originMatch[1].trim();
+  }
+  
+  // Extract destination
+  const destMatch = message.match(/(?:to|visit|plan)\s+([A-Za-z\s]+)(?:\s+for|\s+from|\s+with|\s+on|\s+in|\.|$)/i);
+  if (destMatch && !currentSession.destination) {
+    updates.destination = destMatch[1].trim();
+  }
+  
+  // Extract days
+  const daysMatch = message.match(/(\d+)\s*(?:day|days)/i);
+  if (daysMatch) {
+    const days = parseInt(daysMatch[1]);
+    // Only set dates if we have a number of days but no specific dates yet
+    if (!currentSession.departureDate) {
+      const today = new Date();
+      const departureDate = new Date(today);
+      departureDate.setDate(today.getDate() + 30); // Default to 30 days from now
+      
+      const returnDate = new Date(departureDate);
+      returnDate.setDate(departureDate.getDate() + days);
+      
+      updates.departureDate = departureDate.toISOString().split('T')[0];
+      updates.returnDate = returnDate.toISOString().split('T')[0];
+    }
+  }
+  
+  // Extract budget
+  const budgetMatchINR = message.match(/(?:budget|cost|spend)\s+(?:of\s+)?(?:₹|Rs\.?|INR)\s*([0-9,.]+)/i);
+  const budgetMatchUSD = message.match(/(?:budget|cost|spend)\s+(?:of\s+)?\$\s*([0-9,.]+)/i);
+  
+  if (budgetMatchINR) {
+    const budgetINR = parseFloat(budgetMatchINR[1].replace(/,/g, ''));
+    // Convert INR to USD (approximate conversion)
+    updates.budget = Math.round(budgetINR / 83); // Using approximate exchange rate
+    updates.currency = 'USD';
+  } else if (budgetMatchUSD) {
+    updates.budget = parseFloat(budgetMatchUSD[1].replace(/,/g, ''));
+    updates.currency = 'USD';
+  }
+  
+  // Extract number of travelers
+  const travelersMatch = message.match(/(\d+)\s*(?:person|people|traveler|travelers|passenger|passengers)/i);
+  if (travelersMatch) {
+    updates.travelers = parseInt(travelersMatch[1]);
+  } else if (!currentSession.travelers) {
+    updates.travelers = 1; // Default to 1 traveler
+  }
+  
+  return updates;
+}
+
+/**
  * Extract relevant information from the Groq response
  */
-function extractInformation(response: string, userMessage: string): any {
+async function extractInformation(response: string, userMessage: string, travelSession: TravelSession = {}): Promise<any> {
   // Initialize result
   const result: any = {
     responseText: response,
@@ -145,13 +260,13 @@ function extractInformation(response: string, userMessage: string): any {
   
   if (locationMatches) {
     // Process location matches asynchronously
-    processLocations(locationMatches, result);
+    await processLocations(locationMatches, result);
   } else {
     // Try to extract locations from the user message
     const userLocationMatches = userMessage.match(/([A-Za-z\s]+)(?:\s+in\s+|visit\s+|plan\s+a\s+trip\s+to\s+|travel\s+to\s+)/g);
     
     if (userLocationMatches) {
-      processLocations(userLocationMatches, result);
+      await processLocations(userLocationMatches, result);
     }
   }
   
@@ -161,8 +276,78 @@ function extractInformation(response: string, userMessage: string): any {
   }
   
   // Extract weather information
-  if (response.toLowerCase().includes('weather') || response.toLowerCase().includes('temperature') || response.toLowerCase().includes('climate')) {
-    result.weather = extractWeather(response);
+  let weatherLocation = '';
+  
+  // First try to get location from travel session
+  if (travelSession.destination) {
+    weatherLocation = travelSession.destination;
+  } 
+  // Then try to extract from response
+  else if (response.toLowerCase().includes('weather') || response.toLowerCase().includes('temperature')) {
+    const weatherLocationMatch = response.match(/weather\s+in\s+([A-Za-z\s]+)/i) || 
+                            response.match(/(?:in|at)\s+([A-Za-z\s]+)\s+(?:is|ranges|averages)/i) ||
+                            response.match(/([A-Za-z\s]+)(?:'s|\s+has|\s+typically\s+has)\s+(?:weather|climate|temperatures)/i);
+    
+    if (weatherLocationMatch) {
+      weatherLocation = weatherLocationMatch[1].trim();
+    }
+  }
+  
+  // If we have a location, try to get real weather data
+  if (weatherLocation) {
+    try {
+      const weatherData = await weatherService.getForecast(weatherLocation, 3);
+      result.weather = weatherService.formatWeatherData(weatherData, weatherLocation);
+    } catch (error) {
+      console.error(`Error fetching weather for ${weatherLocation}:`, error);
+      // Fallback to extracted weather from the response
+      if (response.toLowerCase().includes('weather') || 
+          response.toLowerCase().includes('temperature') || 
+          response.toLowerCase().includes('climate')) {
+        result.weather = extractWeather(response);
+      }
+    }
+  }
+  
+  // Process flight and hotel information if we have travel session details
+  if (travelSession.origin && travelSession.destination && 
+      travelSession.departureDate && travelSession.returnDate) {
+    try {
+      // Get flight options
+      const originCode = await amadeus.getLocationCode(travelSession.origin);
+      const destCode = await amadeus.getLocationCode(travelSession.destination);
+      
+      if (originCode && destCode) {
+        const flightResults = await amadeus.searchFlights(
+          originCode,
+          destCode,
+          travelSession.departureDate,
+          travelSession.returnDate,
+          travelSession.travelers || 1,
+          travelSession.budget
+        );
+        
+        if (flightResults && flightResults.data && flightResults.data.length > 0) {
+          travelSession.flightOptions = flightResults.data;
+        }
+      }
+      
+      // Get hotel options
+      if (destCode) {
+        const hotelResults = await amadeus.searchHotels(
+          destCode,
+          travelSession.departureDate,
+          travelSession.returnDate,
+          travelSession.travelers || 1
+        );
+        
+        if (hotelResults && hotelResults.data && hotelResults.data.length > 0) {
+          travelSession.hotelOptions = hotelResults.data;
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching flight or hotel options:', error);
+    }
   }
   
   return result;

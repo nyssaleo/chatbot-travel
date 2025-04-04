@@ -1,107 +1,100 @@
 import React from 'react';
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Star, MapPin, Clock, DollarSign, UtensilsCrossed } from 'lucide-react';
 
 interface RestaurantCardProps {
-  name: string;
-  cuisine: string;
-  price: string;
-  rating: number;
+  restaurant: {
+    id: string;
+    name: string;
+    cuisine: string;
+    address: string;
+    price: string; // '$', '$$', '$$$', '$$$$'
+    rating: number;
+    openingHours?: string;
+    imageUrl?: string;
+  };
+  className?: string;
 }
 
-const RestaurantCard: React.FC<RestaurantCardProps> = ({
-  name,
-  cuisine,
-  price,
-  rating
-}) => {
-  // Function to render the stars based on rating
-  const renderStars = () => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 >= 0.5;
+export function RestaurantCard({ restaurant, className }: RestaurantCardProps) {
+  // Convert price string to visual representation
+  const renderPrice = () => {
+    const maxDollars = 4;
+    const dollars = restaurant.price.length;
     
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(<i key={`full-${i}`} className="fas fa-star text-yellow-400"></i>);
-    }
-    
-    if (hasHalfStar) {
-      stars.push(<i key="half" className="fas fa-star-half-alt text-yellow-400"></i>);
-    }
-    
-    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(<i key={`empty-${i}`} className="far fa-star text-muted-foreground"></i>);
-    }
-    
-    return stars;
+    return (
+      <span className="flex">
+        {Array(dollars).fill(0).map((_, i) => (
+          <DollarSign key={i} className="h-3 w-3 fill-current" />
+        ))}
+        {Array(maxDollars - dollars).fill(0).map((_, i) => (
+          <DollarSign key={i + dollars} className="h-3 w-3 opacity-20" />
+        ))}
+      </span>
+    );
   };
-  
-  // Function to generate a random signature dish
-  const getSignatureDish = () => {
-    const dishes = [
-      "Signature Ramen",
-      "Fresh Sushi Platter",
-      "Authentic Pasta",
-      "Crispy Duck",
-      "Seafood Paella",
-      "Traditional Curry"
-    ];
-    
-    return dishes[Math.floor(Math.random() * dishes.length)];
-  };
-  
-  return (
-    <div className="flex flex-col space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center mr-2">
-            <i className="fas fa-utensils text-primary"></i>
-          </div>
-          <div>
-            <h4 className="font-medium">{name}</h4>
-            <div className="flex items-center text-xs space-x-1 mt-0.5">
-              {renderStars()}
-            </div>
-          </div>
-        </div>
-        <div className="text-right">
-          <Badge className="bg-primary/10 text-primary">{price}</Badge>
-          <p className="text-xs mt-1">{cuisine}</p>
-        </div>
-      </div>
-      
-      <div className="flex items-start space-x-4">
-        <div className="flex-1">
-          <div className="text-sm font-medium">Popular Dishes</div>
-          <div className="text-xs text-muted-foreground mt-1 space-y-1">
-            <div className="flex items-center">
-              <i className="fas fa-star-of-life text-primary text-[8px] mr-1.5"></i>
-              {getSignatureDish()}
-            </div>
-            <div className="flex items-center">
-              <i className="fas fa-star-of-life text-primary text-[8px] mr-1.5"></i>
-              {getSignatureDish()}
-            </div>
-          </div>
-        </div>
-        
-        <button className="glass-lighter text-sm px-3 py-1 rounded-lg hover:bg-primary/20 transition-colors">
-          Menu
-        </button>
-      </div>
-      
-      <div className="flex items-center justify-between text-xs">
-        <div className="flex items-center">
-          <i className="fas fa-clock text-muted-foreground mr-1.5"></i>
-          <span className="text-muted-foreground">Opens 11:30 AM - 10:00 PM</span>
-        </div>
-        
-        <Badge variant="outline" className="bg-amber-500/10 text-amber-400">
-          <i className="fas fa-utensils mr-1.5"></i> Reservations recommended
-        </Badge>
-      </div>
-    </div>
-  );
-};
 
-export default RestaurantCard;
+  return (
+    <Card className={`${className} backdrop-blur-md bg-white/30 dark:bg-gray-900/30 border-none shadow-md overflow-hidden w-full hover:shadow-lg transition-all`}>
+      <div className="flex flex-col md:flex-row">
+        {restaurant.imageUrl && (
+          <div className="md:w-1/3 h-36 md:h-auto relative">
+            <div 
+              className="absolute inset-0 bg-cover bg-center" 
+              style={{ backgroundImage: `url(${restaurant.imageUrl})` }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-tr from-black/40 to-transparent" />
+          </div>
+        )}
+        
+        <CardContent className={`p-4 flex-1 ${!restaurant.imageUrl ? 'w-full' : 'md:w-2/3'}`}>
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="font-bold text-lg">{restaurant.name}</h3>
+              <div className="flex items-center text-sm text-muted-foreground mb-2">
+                <MapPin className="h-3.5 w-3.5 mr-1" />
+                <span>{restaurant.address}</span>
+              </div>
+            </div>
+            <Badge variant="outline" className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-300 dark:border-green-700">
+              {Array(Math.floor(restaurant.rating)).fill(0).map((_, i) => (
+                <Star key={i} className="h-3 w-3 fill-current" />
+              ))}
+              {restaurant.rating % 1 > 0 && (
+                <Star className="h-3 w-3 fill-current opacity-50" />
+              )}
+            </Badge>
+          </div>
+          
+          <div className="flex flex-wrap gap-2 mb-4">
+            <Badge variant="secondary" className="text-xs flex items-center gap-1">
+              <UtensilsCrossed className="h-3.5 w-3.5" />
+              {restaurant.cuisine}
+            </Badge>
+            
+            {restaurant.openingHours && (
+              <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" />
+                {restaurant.openingHours}
+              </Badge>
+            )}
+          </div>
+          
+          <div className="flex justify-between items-center mt-2">
+            <div className="text-sm flex items-center">
+              <span className="text-muted-foreground mr-1">Price:</span>
+              {renderPrice()}
+            </div>
+            
+            <div className="text-right">
+              <div className="text-sm text-green-600 dark:text-green-400 font-medium">
+                Open Now
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </div>
+    </Card>
+  );
+}

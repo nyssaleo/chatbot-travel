@@ -1,112 +1,131 @@
 import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Cloud, CloudRain, Sun, CloudSun, Snowflake, ThermometerSun, ThermometerSnowflake, Wind } from 'lucide-react';
 import { Weather } from '@/lib/types';
-import { Card, CardContent } from "@/components/ui/card";
 
 interface WeatherCardProps {
   weather: Weather;
+  className?: string;
 }
 
-const WeatherCard: React.FC<WeatherCardProps> = ({ weather }) => {
-  // Function to get weather icon class based on conditions
-  const getWeatherIcon = (conditions: string) => {
-    const lowerConditions = conditions.toLowerCase();
+export function WeatherCard({ weather, className }: WeatherCardProps) {
+  // Helper to get weather icon based on condition
+  const getWeatherIcon = (condition: string) => {
+    const lowerCondition = condition.toLowerCase();
     
-    if (lowerConditions.includes('sunny') || lowerConditions.includes('clear')) {
-      return 'fa-sun text-yellow-400';
-    } else if (lowerConditions.includes('cloud') || lowerConditions.includes('overcast')) {
-      return 'fa-cloud text-gray-400';
-    } else if (lowerConditions.includes('rain') || lowerConditions.includes('drizzle')) {
-      return 'fa-cloud-rain text-blue-400';
-    } else if (lowerConditions.includes('thunderstorm') || lowerConditions.includes('storm')) {
-      return 'fa-bolt text-yellow-500';
-    } else if (lowerConditions.includes('snow') || lowerConditions.includes('flurries')) {
-      return 'fa-snowflake text-blue-300';
-    } else if (lowerConditions.includes('fog') || lowerConditions.includes('mist')) {
-      return 'fa-smog text-gray-300';
-    } else if (lowerConditions.includes('wind') || lowerConditions.includes('gust')) {
-      return 'fa-wind text-blue-200';
+    if (lowerCondition.includes('rain') || lowerCondition.includes('drizzle') || lowerCondition.includes('shower')) {
+      return <CloudRain className="h-6 w-6 text-blue-500" />;
+    } else if (lowerCondition.includes('sun') && lowerCondition.includes('cloud')) {
+      return <CloudSun className="h-6 w-6 text-amber-500" />;
+    } else if (lowerCondition.includes('sun') || lowerCondition.includes('clear')) {
+      return <Sun className="h-6 w-6 text-amber-500" />;
+    } else if (lowerCondition.includes('cloud')) {
+      return <Cloud className="h-6 w-6 text-gray-500" />;
+    } else if (lowerCondition.includes('snow') || lowerCondition.includes('ice')) {
+      return <Snowflake className="h-6 w-6 text-blue-300" />;
     } else {
-      return 'fa-cloud-sun text-yellow-300';
+      return <CloudSun className="h-6 w-6 text-amber-500" />;
     }
   };
-  
-  // Function to generate forecast data for the next few days
-  const getForecastData = () => {
-    const days = ['Today', 'Tomorrow', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const icons = ['fa-sun', 'fa-cloud-sun', 'fa-cloud', 'fa-cloud-showers-heavy', 'fa-cloud-sun'];
-    const temps = [
-      { min: parseInt(weather.temperature.min) - 2, max: parseInt(weather.temperature.max) - 1 },
-      { min: parseInt(weather.temperature.min) - 1, max: parseInt(weather.temperature.max) + 1 },
-      { min: parseInt(weather.temperature.min), max: parseInt(weather.temperature.max) + 2 },
-      { min: parseInt(weather.temperature.min) + 1, max: parseInt(weather.temperature.max) },
-      { min: parseInt(weather.temperature.min) - 1, max: parseInt(weather.temperature.max) - 2 }
-    ];
+
+  // Helper to get season color
+  const getSeasonColor = (season?: string) => {
+    if (!season) return 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
     
-    return days.slice(0, 5).map((day, index) => ({
-      day,
-      icon: `fas ${icons[index % icons.length]} ${index === 0 ? 'text-yellow-400' : 'text-gray-400'}`,
-      min: `${temps[index].min}°`,
-      max: `${temps[index].max}°`
-    }));
+    const lowerSeason = season.toLowerCase();
+    if (lowerSeason.includes('summer')) {
+      return 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+    } else if (lowerSeason.includes('spring')) {
+      return 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+    } else if (lowerSeason.includes('fall') || lowerSeason.includes('autumn')) {
+      return 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300';
+    } else if (lowerSeason.includes('winter')) {
+      return 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+    }
+    return 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
   };
-  
+
   return (
-    <Card className="glass-darker overflow-hidden">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-lg font-medium flex items-center">
-              <i className="fas fa-map-marker-alt text-primary mr-2"></i>
-              {weather.location} Weather
-            </h3>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {weather.season ? `${weather.season} season` : 'Current conditions'}
-            </p>
-          </div>
-          
-          <div className="flex items-center p-1 px-3 glass-lighter rounded-lg">
-            <span className="text-3xl mr-3">
-              <i className={`fas ${getWeatherIcon(weather.conditions)}`}></i>
-            </span>
-            <div>
-              <p className="text-xl font-bold">{weather.temperature.average}</p>
-              <p className="text-xs text-muted-foreground">{weather.conditions}</p>
-            </div>
-          </div>
+    <Card className={`${className} backdrop-blur-md bg-white/30 dark:bg-gray-900/30 border-none shadow-md overflow-hidden hover:shadow-lg transition-all`}>
+      <CardHeader className="pb-2">
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-lg font-bold">
+            Weather in {weather.location}
+          </CardTitle>
+          {weather.season && (
+            <Badge className={`${getSeasonColor(weather.season)}`}>
+              {weather.season}
+            </Badge>
+          )}
         </div>
-        
-        <div className="mt-5 flex items-center justify-between">
-          {getForecastData().map((forecast, index) => (
-            <div key={index} className="text-center">
-              <p className="text-xs font-medium">{forecast.day}</p>
-              <p className="text-lg my-1">
-                <i className={forecast.icon}></i>
-              </p>
-              <div className="flex text-xs justify-center space-x-1">
-                <span className="text-blue-300">{forecast.min}</span>
-                <span className="text-red-300">{forecast.max}</span>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col md:flex-row justify-between items-center">
+          <div className="flex items-center mb-4 md:mb-0">
+            <div className="mr-4">
+              {weather.icon ? (
+                <img src={weather.icon} alt={weather.conditions} className="w-14 h-14" />
+              ) : (
+                getWeatherIcon(weather.conditions)
+              )}
+            </div>
+            <div>
+              <div className="text-2xl font-bold">
+                {weather.temperature.average}
+              </div>
+              <div className="text-muted-foreground">
+                {weather.conditions}
               </div>
             </div>
-          ))}
+          </div>
+          
+          <div className="flex gap-3 md:gap-4">
+            <div className="text-center p-2 rounded-lg bg-blue-50/50 dark:bg-blue-900/20">
+              <div className="flex justify-center mb-1">
+                <ThermometerSnowflake className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="text-sm font-medium">Min</div>
+              <div className="text-lg">{weather.temperature.min}</div>
+            </div>
+            
+            <div className="text-center p-2 rounded-lg bg-amber-50/50 dark:bg-amber-900/20">
+              <div className="flex justify-center mb-1">
+                <ThermometerSun className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="text-sm font-medium">Max</div>
+              <div className="text-lg">{weather.temperature.max}</div>
+            </div>
+          </div>
         </div>
         
-        <div className="mt-4 flex items-center justify-between text-xs glass-lighter px-3 py-2 rounded-lg">
-          <div className="flex items-center">
-            <i className="fas fa-tint text-blue-400 mr-1.5"></i>
-            <span>Humidity: 65%</span>
+        {/* If we have forecast data, show a 3-day forecast */}
+        {weather.forecasts && (
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
+            <div className="grid grid-cols-3 gap-2">
+              {weather.forecasts.map((day, index) => (
+                <div key={index} className="text-center">
+                  <div className="text-xs text-muted-foreground">{day.date}</div>
+                  <div className="my-1">
+                    {day.icon ? (
+                      <img src={day.icon} alt={day.condition} className="w-8 h-8 mx-auto" />
+                    ) : (
+                      <div className="flex justify-center">
+                        {getWeatherIcon(day.condition)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-xs">
+                    <span className="text-blue-600 dark:text-blue-400">{day.minTemp}</span>
+                    {' - '}
+                    <span className="text-amber-600 dark:text-amber-400">{day.maxTemp}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex items-center">
-            <i className="fas fa-wind text-gray-400 mr-1.5"></i>
-            <span>Wind: 8 mph</span>
-          </div>
-          <div className="flex items-center">
-            <i className="fas fa-eye text-purple-400 mr-1.5"></i>
-            <span>Visibility: Good</span>
-          </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );
-};
-
-export default WeatherCard;
+}

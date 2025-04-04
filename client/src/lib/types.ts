@@ -34,6 +34,14 @@ export interface Itinerary {
 }
 
 // Weather types
+export interface WeatherForecast {
+  date: string;
+  condition: string;
+  icon?: string;
+  minTemp: string;
+  maxTemp: string;
+}
+
 export interface Weather {
   location: string;
   temperature: {
@@ -44,6 +52,7 @@ export interface Weather {
   conditions: string;
   season?: string;
   icon: string;
+  forecasts?: WeatherForecast[];
 }
 
 // API response types
