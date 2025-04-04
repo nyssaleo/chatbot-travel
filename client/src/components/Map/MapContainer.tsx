@@ -8,12 +8,14 @@ interface MapContainerProps {
   markers: MapMarker[];
   currentLocation: string;
   weather: Weather | null;
+  isCollapsible?: boolean;
 }
 
 const MapContainer: React.FC<MapContainerProps> = ({ 
   markers, 
   currentLocation,
-  weather
+  weather,
+  isCollapsible = false
 }) => {
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -175,8 +177,64 @@ const MapContainer: React.FC<MapContainerProps> = ({
     total: markers.length
   };
   
+  // If the map is collapsible, we render it differently
+  if (isCollapsible) {
+    const [isCollapsed, setIsCollapsed] = useState(true);
+    
+    return (
+      <div className={`transition-all duration-300 ${isCollapsed ? 'w-16 h-16' : 'w-[300px] h-[300px]'}`}>
+        {isCollapsed ? (
+          <button 
+            onClick={() => setIsCollapsed(false)}
+            className="w-full h-full flex items-center justify-center bg-primary bg-opacity-90 rounded-lg shadow-lg hover:bg-opacity-100 transition-all"
+            title="Expand map"
+          >
+            <i className="fas fa-map-marked-alt text-white text-xl"></i>
+          </button>
+        ) : (
+          <div className="w-full h-full flex flex-col rounded-lg overflow-hidden glass shadow-xl">
+            <div className="p-2 flex justify-between items-center bg-primary bg-opacity-20">
+              <div className="text-xs font-medium text-white">
+                {currentLocation || "Map"}
+              </div>
+              <div className="flex space-x-1">
+                <button 
+                  onClick={toggleMapLayer}
+                  className="p-1 rounded-md hover:bg-white hover:bg-opacity-20 transition-all"
+                  title={activeLayer === 'standard' ? 'Switch to satellite view' : 'Switch to standard view'}
+                >
+                  <i className={`fas ${activeLayer === 'standard' ? 'fa-satellite' : 'fa-map'} text-white text-xs`}></i>
+                </button>
+                <button 
+                  onClick={() => setIsCollapsed(true)}
+                  className="p-1 rounded-md hover:bg-white hover:bg-opacity-20 transition-all"
+                  title="Collapse map"
+                >
+                  <i className="fas fa-times text-white text-xs"></i>
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 relative">
+              <div 
+                ref={mapContainerRef} 
+                className="h-full w-full"
+              ></div>
+              
+              {markers.length > 0 && (
+                <div className="absolute top-2 left-2 bg-black bg-opacity-50 text-white text-xs py-1 px-2 rounded-md z-10">
+                  {markers.length} location{markers.length !== 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Regular non-collapsible map (full size)
   return (
-    <div className={`glass flex flex-col overflow-hidden transition-all duration-300 ${mapExpanded ? 'h-[600px]' : 'h-[500px]'}`}>
+    <div className={`glass flex flex-col overflow-hidden transition-all duration-300 ${mapExpanded ? 'h-[600px]' : 'h-[300px]'}`}>
       <div className="p-4 border-b border-[rgba(255,255,255,0.1)] flex justify-between items-center">
         <div>
           <h2 className="text-lg font-medium text-white flex items-center">
@@ -237,11 +295,7 @@ const MapContainer: React.FC<MapContainerProps> = ({
           </div>
         </div>
         
-        {/* Information Cards */}
-        <InfoCards 
-          weather={weather}
-          foodPlaces={foodPlaces}
-        />
+        {/* Removed InfoCards from bottom for more map space */}
       </div>
     </div>
   );

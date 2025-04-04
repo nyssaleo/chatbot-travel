@@ -181,12 +181,13 @@ export default function Home() {
         </div>
       </main>
       
-      {/* Bottom Map Area - Hidden on mobile, shown on all desktop layouts */}
-      <div className="hidden lg:block h-80 mt-4">
+      {/* Collapsible Map in Corner - Show on all layouts */}
+      <div className="fixed bottom-4 right-4 z-50 shadow-xl rounded-lg overflow-hidden">
         <MapContainer 
           markers={markers}
           currentLocation={currentLocation}
           weather={weather}
+          isCollapsible={true}
         />
       </div>
     </div>

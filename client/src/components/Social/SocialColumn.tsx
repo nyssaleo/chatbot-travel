@@ -47,8 +47,8 @@ const SocialColumn: React.FC<SocialColumnProps> = ({ currentLocation }) => {
   };
   
   return (
-    <div className="h-full flex flex-col glass-column">
-      <div className="p-4 border-b">
+    <div className="h-full flex flex-col glass-column overflow-hidden">
+      <div className="p-4 border-b flex-shrink-0">
         <h2 className="text-xl font-bold flex items-center">
           <i className="fas fa-users text-primary mr-2"></i>
           Social
@@ -58,8 +58,8 @@ const SocialColumn: React.FC<SocialColumnProps> = ({ currentLocation }) => {
         </p>
       </div>
       
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <TabsList className="w-full justify-start px-4 pt-2 glass-tab-list">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+        <TabsList className="w-full justify-start px-4 pt-2 glass-tab-list flex-shrink-0 overflow-x-auto">
           <TabsTrigger value="group-chat" className="flex items-center">
             <i className="fas fa-comments mr-1.5"></i> Chat
           </TabsTrigger>
@@ -71,7 +71,7 @@ const SocialColumn: React.FC<SocialColumnProps> = ({ currentLocation }) => {
           </TabsTrigger>
         </TabsList>
         
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0 overflow-y-auto">
           <TabsContent value="group-chat" className="flex flex-col h-full mt-0">
             <div className="px-4 py-2">
               <Card className="glass-darker overflow-hidden">

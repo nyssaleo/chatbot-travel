@@ -33,8 +33,8 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
   const hotelMarkers = markers.filter(marker => marker.type === 'hotel');
   
   return (
-    <div className="h-full flex flex-col glass-column">
-      <div className="p-4 border-b">
+    <div className="h-full flex flex-col glass-column overflow-hidden">
+      <div className="p-4 border-b flex-shrink-0">
         <h2 className="text-xl font-bold flex items-center">
           <i className="fas fa-info-circle text-primary mr-2"></i>
           Travel Information
@@ -44,8 +44,8 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
         </p>
       </div>
       
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <TabsList className="w-full justify-start px-4 pt-2 glass-tab-list">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+        <TabsList className="w-full justify-start px-4 pt-2 glass-tab-list flex-shrink-0 overflow-x-auto">
           <TabsTrigger value="overview" className="flex items-center">
             <i className="fas fa-th-large mr-1.5"></i> Overview
           </TabsTrigger>
@@ -63,7 +63,7 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
           </TabsTrigger>
         </TabsList>
         
-        <ScrollArea className="flex-1 px-4 py-2">
+        <ScrollArea className="flex-1 px-4 py-2 min-h-0 overflow-y-auto">
           <TabsContent value="overview" className="mt-0 space-y-4">
             {weather && (
               <WeatherCard weather={weather} />
