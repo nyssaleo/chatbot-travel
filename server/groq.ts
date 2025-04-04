@@ -420,16 +420,146 @@ async function processLocations(matches: RegExpMatchArray, result: any): Promise
  * Extract itinerary information from the response
  */
 function extractItinerary(response: string, userMessage: string): any {
-  // Try to determine destination from user message
-  const destinationMatches = userMessage.match(/(?:trip|visit|travel|itinerary|plan)(?:\s+(?:to|for|in|at))\s+([A-Za-z\s]+)/i);
-  const destination = destinationMatches ? destinationMatches[1].trim() : 'Your Destination';
+  // Try to determine destination from the response first
+  const responseDestinationMatches = response.match(/(?:trip|visit|travel|itinerary|plan)(?:\s+(?:to|for|in|at))\s+([A-Za-z\s,]+?)(?:\.|,|\s+with|\s+for)/i);
   
-  // Try to determine days from user message
-  const daysMatches = userMessage.match(/(\d+)\s*(?:day|days)/i);
-  const numberOfDays = daysMatches ? parseInt(daysMatches[1]) : 3;
+  // Or try to determine destination from user message
+  const userDestinationMatches = userMessage.match(/(?:trip|visit|travel|itinerary|plan)(?:\s+(?:to|for|in|at))\s+([A-Za-z\s]+)/i);
   
-  // Create enhanced mock itinerary based on destination
+  const destination = responseDestinationMatches ? responseDestinationMatches[1].trim() : 
+                      userDestinationMatches ? userDestinationMatches[1].trim() : 'Your Destination';
+  
+  // Try to determine days from response
+  const responseDaysMatches = response.match(/(\d+)(?:-|\s*)?day(?:\s+trip|\s+itinerary|\s+visit)?/i);
+  
+  // Or try to determine days from user message
+  const userDaysMatches = userMessage.match(/(\d+)\s*(?:day|days)/i);
+  
+  const numberOfDays = responseDaysMatches ? parseInt(responseDaysMatches[1]) : 
+                      userDaysMatches ? parseInt(userDaysMatches[1]) : 3;
+  
+  // First, try to parse itinerary days from the model's response using pattern matching
   const days = [];
+  
+  // Try to extract Day sections using regex
+  const dayRegex = /Day\s+(\d+)[^\n]*?\n((?:.+\n)+?)(?:Day\s+\d|$)/gi;
+  let dayMatch;
+  let dayMatches: RegExpExecArray[] = [];
+  
+  // Manually extract all matches
+  while ((dayMatch = dayRegex.exec(response)) !== null) {
+    dayMatches.push(dayMatch);
+  }
+  
+  // If we found structured day information
+  if (dayMatches.length > 0) {
+    for (const match of dayMatches) {
+      const dayNumber = parseInt(match[1]);
+      const dayContent = match[2].trim();
+      
+      // Now extract activities from each day
+      const activities = [];
+      
+      // Try to find time-based activities (e.g., "Morning: Visit...")
+      const timeActivityRegex = /(Morning|Afternoon|Evening|Night):\s*([^\n]+)/gi;
+      let timeActivityMatch;
+      let timeActivityMatches: RegExpExecArray[] = [];
+      
+      // Manually extract all matches
+      while ((timeActivityMatch = timeActivityRegex.exec(dayContent)) !== null) {
+        timeActivityMatches.push(timeActivityMatch);
+      }
+      
+      if (timeActivityMatches.length > 0) {
+        for (const activityMatch of timeActivityMatches) {
+          const timeOfDay = activityMatch[1].trim();
+          const activityDesc = activityMatch[2].trim();
+          
+          // Convert time of day to approximate hours
+          let time;
+          switch (timeOfDay.toLowerCase()) {
+            case 'morning': time = '9:00 AM'; break;
+            case 'afternoon': time = '2:00 PM'; break;
+            case 'evening': time = '7:00 PM'; break;
+            case 'night': time = '9:00 PM'; break;
+            default: time = '12:00 PM';
+          }
+          
+          activities.push({ time, description: activityDesc });
+        }
+      } else {
+        // Try to find bullet point activities
+        const bulletActivityRegex = /[•*-]\s*([^\n]+)/g;
+        let bulletActivityMatch;
+        let bulletActivityMatches: RegExpExecArray[] = [];
+        
+        // Manually extract all matches
+        while ((bulletActivityMatch = bulletActivityRegex.exec(dayContent)) !== null) {
+          bulletActivityMatches.push(bulletActivityMatch);
+        }
+        
+        if (bulletActivityMatches.length > 0) {
+          // Distribute bullet points throughout the day
+          const timeSlots = ['8:00 AM', '10:30 AM', '1:00 PM', '3:30 PM', '6:00 PM', '8:30 PM'];
+          
+          bulletActivityMatches.forEach((activityMatch, index) => {
+            const timeIndex = index % timeSlots.length;
+            activities.push({ 
+              time: timeSlots[timeIndex], 
+              description: activityMatch[1].trim() 
+            });
+          });
+        } else {
+          // If no structured activities found, try to parse sentences as activities
+          const sentences = dayContent.split(/[.!?]\s+/);
+          sentences.forEach((sentence: string, index: number) => {
+            if (sentence.trim().length > 10) { // Minimum sentence length
+              const hour = 8 + (index * 2) % 14; // Distribute between 8 AM and 10 PM
+              const timeStr = hour <= 12 ? `${hour}:00 AM` : `${hour-12}:00 PM`;
+              activities.push({ time: timeStr, description: sentence.trim() });
+            }
+          });
+        }
+      }
+      
+      // Get day title - use first activity or generic title
+      let dayTitle = `Day ${dayNumber} in ${destination}`;
+      if (activities.length > 0) {
+        // Try to create a title based on the theme of activities
+        if (activities[0].description.toLowerCase().includes('temple') || 
+            activities[0].description.toLowerCase().includes('shrine')) {
+          dayTitle = 'Cultural Exploration';
+        } else if (activities[0].description.toLowerCase().includes('market') || 
+                  activities[0].description.toLowerCase().includes('shop')) {
+          dayTitle = 'Shopping & Local Markets';
+        } else if (activities[0].description.toLowerCase().includes('museum') || 
+                  activities[0].description.toLowerCase().includes('art')) {
+          dayTitle = 'Arts & Museums';
+        } else if (activities[0].description.toLowerCase().includes('nature') || 
+                  activities[0].description.toLowerCase().includes('park') ||
+                  activities[0].description.toLowerCase().includes('garden')) {
+          dayTitle = 'Nature & Outdoors';
+        } else {
+          // Just use the first part of the first activity
+          const firstActivity = activities[0].description.split(',')[0];
+          if (firstActivity.length > 30) {
+            dayTitle = firstActivity.substring(0, 30) + '...';
+          } else {
+            dayTitle = firstActivity;
+          }
+        }
+      }
+      
+      // Only add days with activities
+      if (activities.length > 0) {
+        days.push({
+          day: dayNumber,
+          title: dayTitle,
+          activities: activities
+        });
+      }
+    }
+  }
   
   // Generate itinerary based on destination and number of days
   if (destination.toLowerCase().includes('tokyo')) {
@@ -728,6 +858,48 @@ function extractItinerary(response: string, userMessage: string): any {
       });
     }
   }
+  
+  // Only use predefined itineraries if we didn't successfully extract days from the response
+  if (days.length === 0) {
+    // Generate fallback itinerary based on destination and number of days
+    if (destination.toLowerCase().includes('tokyo')) {
+      // Tokyo-specific itinerary
+      days.push({
+        day: 1,
+        title: 'Tokyo Highlights',
+        activities: [
+          { time: '9:00 AM', description: 'Tokyo Metropolitan Government Building for panoramic city views' },
+          { time: '11:30 AM', description: 'Meiji Shrine and peaceful forest walk' },
+          { time: '1:00 PM', description: 'Lunch at Harajuku\'s trendy cafes' },
+          { time: '3:00 PM', description: 'Shibuya Crossing and shopping district exploration' },
+          { time: '6:30 PM', description: 'Dinner at an izakaya in Shinjuku' },
+          { time: '8:00 PM', description: 'Nighttime views from Tokyo Tower' }
+        ]
+      });
+      
+      // Add more days as needed
+      if (numberOfDays >= 2) {
+        days.push({
+          day: 2,
+          title: 'Traditional Tokyo',
+          activities: [
+            { time: '8:30 AM', description: 'Early morning visit to Tsukiji Outer Market for sushi breakfast' },
+            { time: '10:30 AM', description: 'Asakusa and Senso-ji Temple exploration' },
+            { time: '1:00 PM', description: 'Lunch at a traditional tempura restaurant' },
+            { time: '2:30 PM', description: 'Tokyo National Museum in Ueno Park' },
+            { time: '5:00 PM', description: 'Akihabara Electric Town for anime and electronics' },
+            { time: '7:30 PM', description: 'Dinner at a themed restaurant experience' }
+          ]
+        });
+      }
+      
+      // Add more days for specific cities as in the old code...
+    }
+    // Add additional cities as needed (Paris, New York, etc.) from the original code
+  }
+  
+  // Sort days by day number to ensure correct order
+  days.sort((a, b) => a.day - b.day);
   
   return {
     id: uuidv4(),
