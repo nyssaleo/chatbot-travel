@@ -1,0 +1,91 @@
+Looking at your code, I can identify where the issue might be happening with the itinerary card not displaying data from the model's response. The problem seems to be in the extraction process - specifically how the itinerary data is being parsed from the model's response.
+The issue is likely in the extractItinerary() function. Looking at your regex patterns and extraction logic, there are a few potential problems:
+
+Regex pattern for day extraction - The current pattern Day\s+(\d+)[:\s]+(.*?)(?=Day\s+\d+|$)/gs might be too rigid if the model formats days differently.
+Activity time format expectations - Your code expects times in a specific format with AM/PM, but the model might be returning 24-hour format or using different delimiters.
+Title extraction - The title extraction uses dayContent.match(/^(.*?)(?:[:\-–]|\n)/); which might fail if the model formats titles differently.
+
+Here's what I suggest fixing:
+javascriptCopyfunction extractItinerary(response: string, userMessage: string): any {
+  // More flexible day pattern that can handle various formats
+  const dayRegex = /(?:^|\n)(?:Day|DAY|day)\s*(\d+)(?:\s*[-:]\s*|\s+|:\s*)(.*?)(?=(?:\n|^)(?:Day|DAY|day)\s*\d+|$)/gs;
+  let dayMatch;
+  const days = [];
+  
+  while ((dayMatch = dayRegex.exec(response)) !== null) {
+    const dayNumber = parseInt(dayMatch[1]);
+    const dayContent = dayMatch[2].trim();
+    
+    // More flexible activity regex that handles various time formats
+    const activityRegex = /(?:^|\n)?\s*(?:([0-9]{1,2}(?::[0-9]{2})?\s*(?:AM|PM|am|pm)?)|([0-9]{1,2}:[0-9]{2}))\s*[-:]\s*(.*?)(?=\n\s*(?:[0-9]{1,2}(?::[0-9]{2})?\s*(?:AM|PM|am|pm)?|[0-9]{1,2}:[0-9]{2})|$)/gs;
+    let activityMatch;
+    const activities = [];
+    
+    // Try to find activities
+    while ((activityMatch = activityRegex.exec(dayContent)) !== null) {
+      const timeStr = activityMatch[1] || activityMatch[2];
+      activities.push({
+        time: timeStr.trim(),
+        description: activityMatch[3].trim()
+      });
+    }
+    
+    // If no activities were found with the regex, try a fallback approach
+    if (activities.length === 0) {
+      // Split by lines and look for lines that might be activities
+      const lines = dayContent.split('\n');
+      for (const line of lines) {
+        const fallbackMatch = line.match(/^\s*([0-9]{1,2}(?::[0-9]{2})?\s*(?:AM|PM|am|pm)?)\s*[-:]\s*(.*)/);
+        if (fallbackMatch) {
+          activities.push({
+            time: fallbackMatch[1].trim(),
+            description: fallbackMatch[2].trim()
+          });
+        }
+      }
+    }
+    
+    // More robust title extraction
+    let title = `Day ${dayNumber}`;
+    const titleMatch = dayContent.match(/^(.*?)(?:[:\-–]|\n|\.|(?=\d{1,2}[:]))/);
+    if (titleMatch && titleMatch[1].trim().length > 0) {
+      title = titleMatch[1].trim();
+    }
+    
+    // Add debugging to check what's being extracted
+    console.log(`Extracted Day ${dayNumber}: ${title} with ${activities.length} activities`);
+    
+    days.push({
+      day: dayNumber,
+      title,
+      activities
+    });
+  }
+  
+  if (days.length > 0) {
+    // Extract destination with more flexibility
+    const destinationMatch = 
+      userMessage.match(/(?:in|to|for|at|visiting|explore)\s+([A-Z][a-zA-Z\s,]+)(?:\s+for|\s+from|\s+on|\s+with|$)/i) || 
+      response.match(/(?:in|to|for|at|visiting|explore)\s+([A-Z][a-zA-Z\s,]+)(?:\s+for|\s+from|\s+on|\s+with|\.)/i);
+    
+    const destination = destinationMatch ? destinationMatch[1].trim() : 'your destination';
+    
+    // Add debugging to check what's being returned
+    console.log(`Extracted itinerary for ${destination} with ${days.length} days`);
+    
+    return {
+      id: uuidv4(),
+      title: `${days.length}-Day Itinerary for ${destination}`,
+      destination,
+      days
+    };
+  }
+  
+  console.log("Failed to extract any itinerary data");
+  return null;
+}
+Additionally, check if the pipeline is passing data correctly:
+
+Make sure the extracted itinerary is properly attached to the response object
+Verify the onItineraryUpdate callback is being triggered
+Check that the itinerary state is properly passed to the ItineraryCard component
