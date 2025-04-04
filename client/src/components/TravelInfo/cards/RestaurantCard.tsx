@@ -9,30 +9,39 @@ interface RestaurantCardProps {
     name: string;
     cuisine: string;
     address: string;
-    price: string; // '$', '$$', '$$$', '$$$$'
+    price: string; // Can be dollar signs ('$', '$$') or descriptive text ('$10-$15', 'Inexpensive')
     rating: number;
     openingHours?: string;
     imageUrl?: string;
+    description?: string;
   };
   className?: string;
 }
 
 export function RestaurantCard({ restaurant, className }: RestaurantCardProps) {
-  // Convert price string to visual representation
+  // Determine if the price is in dollar sign format ('$', '$$', etc.)
+  const isDollarSignFormat = /^(\$+)$/.test(restaurant.price);
+  
+  // Convert price string to visual representation if in dollar signs format
   const renderPrice = () => {
-    const maxDollars = 4;
-    const dollars = restaurant.price.length;
-    
-    return (
-      <span className="flex">
-        {Array(dollars).fill(0).map((_, i) => (
-          <DollarSign key={i} className="h-3 w-3 fill-current" />
-        ))}
-        {Array(maxDollars - dollars).fill(0).map((_, i) => (
-          <DollarSign key={i + dollars} className="h-3 w-3 opacity-20" />
-        ))}
-      </span>
-    );
+    if (isDollarSignFormat) {
+      const maxDollars = 4;
+      const dollars = restaurant.price.length;
+      
+      return (
+        <span className="flex">
+          {Array(dollars).fill(0).map((_, i) => (
+            <DollarSign key={i} className="h-3 w-3 fill-current" />
+          ))}
+          {Array(maxDollars - dollars).fill(0).map((_, i) => (
+            <DollarSign key={i + dollars} className="h-3 w-3 opacity-20" />
+          ))}
+        </span>
+      );
+    } else {
+      // For descriptive price text, just display the text
+      return <span>{restaurant.price}</span>;
+    }
   };
 
   return (
@@ -80,6 +89,10 @@ export function RestaurantCard({ restaurant, className }: RestaurantCardProps) {
               </Badge>
             )}
           </div>
+          
+          {restaurant.description && (
+            <p className="text-sm text-muted-foreground mb-3 line-clamp-3">{restaurant.description}</p>
+          )}
           
           <div className="flex justify-between items-center mt-2">
             <div className="text-sm flex items-center">

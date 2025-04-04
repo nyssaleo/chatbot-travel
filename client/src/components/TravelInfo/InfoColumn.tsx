@@ -360,12 +360,13 @@ const InfoColumn: React.FC<InfoColumnProps> = ({
                         restaurant={{
                           id: food.id,
                           name: food.name,
-                          cuisine: food.description.split('.')[0],
+                          cuisine: "Local Specialty",
                           address: food.location,
                           price: food.price,
                           rating: 4.5,
                           openingHours: "11:00 AM - 10:00 PM",
-                          imageUrl: food.imageUrl
+                          imageUrl: food.imageUrl,
+                          description: food.description
                         }}
                       />
                       {index < localFood.length - 1 && <Separator className="my-3" />}
